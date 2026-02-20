@@ -54,6 +54,17 @@ export enum AudioEvent {
   SCORE_TICK = 'SCORE_TICK',
   HEALTH_WARNING_PULSE = 'HEALTH_WARNING_PULSE',
   FLOOR_TRANSITION = 'FLOOR_TRANSITION',
+
+  // Projectiles
+  PROJECTILE_FIRE = 'PROJECTILE_FIRE',
+  PROJECTILE_HIT = 'PROJECTILE_HIT',
+
+  // Doors
+  DOOR_LOCK = 'DOOR_LOCK',
+  DOOR_UNLOCK = 'DOOR_UNLOCK',
+
+  // Boss
+  BOSS_ROAR = 'BOSS_ROAR',
 }
 
 export interface SoundDef {
@@ -304,6 +315,37 @@ export const SOUND_MANIFEST: Record<AudioEvent, SoundDef> = {
   [AudioEvent.FLOOR_TRANSITION]: {
     paths: ['/audio/wav/ui/44_floor_transition_whoosh.wav'],
     volume: 0.6,
+    loop: false,
+  },
+
+  // ── Projectiles ──────────────────────────────────────────────────
+  [AudioEvent.PROJECTILE_FIRE]: {
+    paths: ['/audio/wav/player/15_sword_swing.wav'],
+    volume: 0.6,
+    loop: false,
+  },
+  [AudioEvent.PROJECTILE_HIT]: {
+    paths: ['/audio/wav/player/16_sword_hit_flesh.wav'],
+    volume: 0.7,
+    loop: false,
+  },
+
+  // ── Doors ────────────────────────────────────────────────────────
+  [AudioEvent.DOOR_LOCK]: {
+    paths: ['/audio/wav/environment/30_stone_creak.wav'],
+    volume: 0.5,
+    loop: false,
+  },
+  [AudioEvent.DOOR_UNLOCK]: {
+    paths: ['/audio/wav/environment/30_stone_creak.wav'],
+    volume: 0.5,
+    loop: false,
+  },
+
+  // ── Boss ─────────────────────────────────────────────────────────
+  [AudioEvent.BOSS_ROAR]: {
+    paths: ['/audio/wav/skeleton/24_skeleton_aggro.wav'],
+    volume: 0.8,
     loop: false,
   },
 };

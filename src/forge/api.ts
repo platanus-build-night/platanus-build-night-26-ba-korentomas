@@ -45,3 +45,45 @@ export async function getWeaponModel(id: number): Promise<ArrayBuffer> {
   if (!res.ok) throw new Error('Failed to load weapon model');
   return res.arrayBuffer();
 }
+
+export interface EnemyCreation {
+  id: number;
+  name: string;
+  sketch_png: string;
+  health: number;
+  speed: number;
+  damage: number;
+  points: number;
+  created_at: string;
+}
+
+export async function listEnemies(): Promise<EnemyCreation[]> {
+  const res = await fetch('/api/enemies');
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getEnemyModel(id: number): Promise<ArrayBuffer> {
+  const res = await fetch(`/api/enemies/${id}/model`);
+  if (!res.ok) throw new Error(`Failed to fetch enemy model ${id}`);
+  return res.arrayBuffer();
+}
+
+export interface DecorationCreation {
+  id: number;
+  name: string;
+  sketch_png: string;
+  created_at: string;
+}
+
+export async function listDecorations(): Promise<DecorationCreation[]> {
+  const res = await fetch('/api/decorations');
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getDecorationModel(id: number): Promise<ArrayBuffer> {
+  const res = await fetch(`/api/decorations/${id}/model`);
+  if (!res.ok) throw new Error(`Failed to fetch decoration model ${id}`);
+  return res.arrayBuffer();
+}

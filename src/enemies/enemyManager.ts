@@ -3,6 +3,8 @@ import { CellType } from '../dungeon/types';
 import type { EnemyType } from './enemyTypes';
 import { EnemyAIState, updateAI } from './enemyAI';
 import { disposeSkeletonShared } from './models/skeletonModel';
+import { cheats } from '../cheats/cheatState';
+import type { ProjectileManager } from '../projectiles/projectileManager';
 
 export interface Enemy {
   id: number;
@@ -17,6 +19,7 @@ export interface Enemy {
   deathFade: number;
   materials: THREE.MeshStandardMaterial[];
   originalColors: number[];
+  roomIndex: number;
 }
 
 const FLASH_DURATION = 0.15;
@@ -27,15 +30,21 @@ export class EnemyManager {
   private nextId = 0;
   private scene: THREE.Scene;
   private pendingPoints = 0;
+  private onEnemyKilledCb: ((roomIndex: number) => void) | null = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+  }
+
+  setOnEnemyKilled(cb: (roomIndex: number) => void): void {
+    this.onEnemyKilledCb = cb;
   }
 
   spawnEnemiesInRoom(
     roomCenter: { x: number; z: number },
     count: number,
     enemyType: EnemyType,
+    roomIndex: number = -1,
   ): void {
     for (let i = 0; i < count; i++) {
       // Spread enemies in a circle around the room center
@@ -74,6 +83,7 @@ export class EnemyManager {
         deathFade: 1,
         materials,
         originalColors,
+        roomIndex,
       };
       this.enemies.push(enemy);
     }
@@ -83,6 +93,7 @@ export class EnemyManager {
     delta: number,
     playerPos: THREE.Vector3,
     grid: CellType[][],
+    projectileManager?: ProjectileManager | null,
   ): { damageToPlayer: number } {
     let damageToPlayer = 0;
 
@@ -138,6 +149,11 @@ export class EnemyManager {
         playerPos.z - enemy.position.z,
       );
 
+      // Fire ranged projectile
+      if (action.fireProjectile && projectileManager && enemy.type.projectileType && action.fireDirection) {
+        projectileManager.spawn(enemy.position, action.fireDirection, enemy.type.projectileType, 'enemy');
+      }
+
       // Apply damage to player
       if (action.dealDamage) {
         damageToPlayer += enemy.type.damage;
@@ -170,7 +186,8 @@ export class EnemyManager {
     const enemy = this.enemies.find((e) => e.id === enemyId);
     if (!enemy || enemy.state === EnemyAIState.DEAD) return;
 
-    enemy.health -= damage;
+    const effectiveDamage = cheats.onehit ? enemy.health : damage;
+    enemy.health -= effectiveDamage;
 
     // Flash red via emissive
     enemy.flashTimer = FLASH_DURATION;
@@ -183,6 +200,7 @@ export class EnemyManager {
       enemy.state = EnemyAIState.DEAD;
       enemy.deathFade = 1;
       this.pendingPoints += enemy.type.points;
+      this.onEnemyKilledCb?.(enemy.roomIndex);
     }
   }
 
@@ -190,6 +208,10 @@ export class EnemyManager {
     const pts = this.pendingPoints;
     this.pendingPoints = 0;
     return pts;
+  }
+
+  getEnemies(): Enemy[] {
+    return this.enemies;
   }
 
   dispose(): void {

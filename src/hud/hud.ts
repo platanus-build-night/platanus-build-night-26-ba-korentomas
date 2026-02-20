@@ -9,6 +9,7 @@ import { drawScore } from './scoreDisplay';
 import { drawCrosshair } from './crosshair';
 import { drawFloorNumber } from './floorDisplay';
 import { drawDamageOverlay } from './damageOverlay';
+import { BossHealthBar } from './bossHealthBar';
 
 export interface HUDState {
   health: number;
@@ -18,11 +19,16 @@ export interface HUDState {
   isAttacking: boolean;
   attackProgress: number;
   damageFlash: number;
+  showBoss?: boolean;
+  bossName?: string;
+  bossHealth?: number;
+  bossMaxHealth?: number;
 }
 
 export class HUD {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private bossBar: BossHealthBar;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -40,6 +46,7 @@ export class HUD {
 
     this.resize();
     document.body.appendChild(this.canvas);
+    this.bossBar = new BossHealthBar();
   }
 
   resize(): void {
@@ -82,6 +89,14 @@ export class HUD {
     if (state.damageFlash > 0) {
       drawDamageOverlay(this.ctx, w, h, state.damageFlash);
     }
+
+    // Boss health bar
+    if (state.showBoss && state.bossName != null && state.bossHealth != null && state.bossMaxHealth != null) {
+      this.bossBar.show(state.bossName);
+      this.bossBar.update(state.bossHealth, state.bossMaxHealth);
+    } else {
+      this.bossBar.hide();
+    }
   }
 
   show(): void {
@@ -94,5 +109,6 @@ export class HUD {
 
   dispose(): void {
     this.canvas.remove();
+    this.bossBar.dispose();
   }
 }

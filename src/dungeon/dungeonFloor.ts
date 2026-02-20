@@ -13,6 +13,7 @@ const CORRIDOR_HEIGHT = 5;
 export interface FloorMeshResult {
   group: THREE.Group;
   doorMeshes: Map<string, THREE.Group>;
+  exitMarker: THREE.Mesh;
 }
 
 export function buildFloorMesh(floor: DungeonFloor): FloorMeshResult {
@@ -87,12 +88,12 @@ export function buildFloorMesh(floor: DungeonFloor): FloorMeshResult {
     }
   }
 
-  // Exit marker: glowing green plane at exit position
+  // Exit marker: starts red/dim (boss must be defeated first), game loop changes to green
   const exitGeo = new THREE.PlaneGeometry(1.5, 1.5);
   const exitMat = new THREE.MeshBasicMaterial({
-    color: 0x00ff66,
+    color: 0xff3333,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.3,
     side: THREE.DoubleSide,
   });
   const exitMarker = new THREE.Mesh(exitGeo, exitMat);
@@ -110,7 +111,7 @@ export function buildFloorMesh(floor: DungeonFloor): FloorMeshResult {
     doorMeshes.set(`${door.gridX},${door.gridZ}`, doorModel);
   }
 
-  return { group, doorMeshes };
+  return { group, doorMeshes, exitMarker };
 }
 
 export function disposeFloorMesh(result: FloorMeshResult): void {

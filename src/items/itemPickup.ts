@@ -11,6 +11,10 @@ export class ItemPickupSystem {
     this.items = items;
   }
 
+  addItem(item: PlacedItem): void {
+    this.items.push(item);
+  }
+
   /** Call each frame. Returns items collected this frame. */
   update(playerPos: THREE.Vector3, delta: number): PlacedItem[] {
     this.time += delta;

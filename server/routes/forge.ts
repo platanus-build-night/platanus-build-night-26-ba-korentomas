@@ -15,29 +15,47 @@ const WEAPON_LABELS: Record<string, string> = {
   mace: 'a flanged mace',
 };
 
+type ForgeCategory = 'weapon' | 'enemy' | 'decoration';
+
+function buildPrompt(category: ForgeCategory, description?: string, weaponType?: string): string {
+  if (category === 'enemy') {
+    const desc = description || 'a fearsome dungeon creature';
+    return `A 3D rendered fantasy monster creature, ${desc}, on a plain white background, centered, single object, high detail, game asset, no text`;
+  }
+  if (category === 'decoration') {
+    const desc = description || 'a stone dungeon decoration';
+    return `A 3D rendered fantasy dungeon decoration, ${desc}, on a plain white background, centered, single object, high detail, game asset, no text`;
+  }
+  // weapon (default)
+  const resolvedType = weaponType || 'sword';
+  const weaponLabel = WEAPON_LABELS[resolvedType] || WEAPON_LABELS['sword'];
+  return description
+    ? `A 3D rendered fantasy ${weaponLabel}, ${description}, on a plain white background, centered, single object, high detail, game asset, no text`
+    : `A 3D rendered fantasy ${weaponLabel} on a plain white background, centered, single object, high detail, game asset, no text`;
+}
+
 forgeRouter.post('/forge', async (req: Request, res: Response) => {
   try {
-    const { sketch, name, weaponType, description } = req.body as {
+    const { sketch, name, weaponType, description, category: rawCategory } = req.body as {
       sketch: string;
       name?: string;
       weaponType?: string;
       description?: string;
+      category?: string;
     };
     if (!sketch) {
       res.status(400).json({ error: 'Missing sketch data' });
       return;
     }
 
+    const category: ForgeCategory =
+      rawCategory === 'enemy' || rawCategory === 'decoration' ? rawCategory : 'weapon';
+
     const base64Data = sketch.replace(/^data:image\/png;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
     const apiKey = process.env.STABILITY_API_KEY;
 
-    // Build prompt based on weapon type and optional description
-    const resolvedType = weaponType || 'sword';
-    const weaponLabel = WEAPON_LABELS[resolvedType] || WEAPON_LABELS['sword'];
-    const prompt = description
-      ? `A 3D rendered fantasy ${weaponLabel}, ${description}, on a plain white background, centered, single object, high detail, game asset, no text`
-      : `A 3D rendered fantasy ${weaponLabel} on a plain white background, centered, single object, high detail, game asset, no text`;
+    const prompt = buildPrompt(category, description, weaponType);
 
     // Step 1: Sketch → Realistic weapon image via Stability Sketch Control
     console.log('Step 1: Converting sketch to realistic image...');
@@ -104,19 +122,46 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
     console.log('Step 3 done. Optimized GLB size:', glbBuffer.length,
       `(${Math.round((1 - glbBuffer.length / rawGlb.length) * 100)}% reduction)`);
 
-    // Store in DB
-    const result = await pool.query(
-      'INSERT INTO weapons (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name, created_at',
-      [name || 'Unnamed Weapon', base64Data, glbBuffer]
-    );
+    // Store in DB based on category
+    let itemId: number;
+    let itemName: string;
 
-    const weapon = result.rows[0];
+    if (category === 'enemy') {
+      const result = await pool.query(
+        'INSERT INTO enemies (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
+        [name || 'Unnamed Enemy', base64Data, glbBuffer]
+      );
+      itemId = result.rows[0].id;
+      itemName = result.rows[0].name;
+    } else if (category === 'decoration') {
+      const result = await pool.query(
+        'INSERT INTO decorations (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
+        [name || 'Unnamed Decoration', base64Data, glbBuffer]
+      );
+      itemId = result.rows[0].id;
+      itemName = result.rows[0].name;
+    } else {
+      const result = await pool.query(
+        'INSERT INTO weapons (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
+        [name || 'Unnamed Weapon', base64Data, glbBuffer]
+      );
+      itemId = result.rows[0].id;
+      itemName = result.rows[0].name;
+    }
 
-    res.set({
+    const headers: Record<string, string> = {
       'Content-Type': 'model/gltf-binary',
-      'X-Weapon-Id': String(weapon.id),
-      'X-Weapon-Name': weapon.name,
-    });
+      'X-Item-Id': String(itemId),
+      'X-Item-Name': itemName,
+      'X-Item-Category': category,
+    };
+    // Backward compat for weapon clients
+    if (category === 'weapon') {
+      headers['X-Weapon-Id'] = String(itemId);
+      headers['X-Weapon-Name'] = itemName;
+    }
+
+    res.set(headers);
     res.send(glbBuffer);
   } catch (err) {
     console.error('Forge error:', err);

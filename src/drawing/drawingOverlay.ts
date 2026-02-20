@@ -2,7 +2,6 @@ import { createSketchPad, SketchPad } from './sketchPad';
 import {
   DrawingCategory,
   DrawingResult,
-  DrawingSubmitHandler,
   DEFAULT_CATEGORIES,
 } from './drawingTypes';
 
@@ -10,8 +9,11 @@ let overlay: HTMLDivElement | null = null;
 let sketchPad: SketchPad | null = null;
 let selectedCategoryId = '';
 let isVisible = false;
-let onSubmit: DrawingSubmitHandler | null = null;
 let categoryButtons: HTMLButtonElement[] = [];
+let promptInput: HTMLInputElement | null = null;
+let pendingResolve: ((result: DrawingResult | null) => void) | null = null;
+let forgeOverlayEl: HTMLDivElement | null = null;
+let genBtn: HTMLButtonElement | null = null;
 
 // --- Parchment border rendering ---
 
@@ -207,7 +209,7 @@ function drawClearButton(canvas: HTMLCanvasElement, hover: boolean): void {
 
 // --- Main overlay ---
 
-function buildOverlay(categories: DrawingCategory[]): HTMLDivElement {
+function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): HTMLDivElement {
   const root = document.createElement('div');
   root.id = 'drawing-overlay';
   Object.assign(root.style, {
@@ -278,7 +280,9 @@ function buildOverlay(categories: DrawingCategory[]): HTMLDivElement {
 
   // Category buttons
   categoryButtons = [];
-  selectedCategoryId = categories[0]?.id ?? '';
+  selectedCategoryId = defaultCategory && categories.some(c => c.id === defaultCategory)
+    ? defaultCategory
+    : categories[0]?.id ?? '';
 
   for (const cat of categories) {
     const btn = document.createElement('button');
@@ -304,6 +308,24 @@ function buildOverlay(categories: DrawingCategory[]): HTMLDivElement {
     categoryButtons.push(btn);
     sidebar.appendChild(btn);
   }
+
+  // Text prompt input
+  promptInput = document.createElement('input');
+  promptInput.type = 'text';
+  promptInput.placeholder = 'Describe your creation...';
+  Object.assign(promptInput.style, {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '8px 10px',
+    background: 'rgba(210, 180, 140, 0.3)',
+    border: '2px solid #8b7355',
+    borderRadius: '6px',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '13px',
+    color: '#2a1a0a',
+    outline: 'none',
+  });
+  sidebar.appendChild(promptInput);
 
   // Spacer
   const spacer = document.createElement('div');
@@ -331,7 +353,7 @@ function buildOverlay(categories: DrawingCategory[]): HTMLDivElement {
   sidebar.appendChild(clearBtn);
 
   // Generate button
-  const genBtn = document.createElement('button');
+  genBtn = document.createElement('button');
   Object.assign(genBtn.style, {
     background: 'none',
     border: 'none',
@@ -402,37 +424,47 @@ function updateCategoryButtons(categories: DrawingCategory[]): void {
 }
 
 function handleGenerate(): void {
-  if (!sketchPad || !onSubmit) return;
+  if (!sketchPad || !pendingResolve) return;
 
   const result: DrawingResult = {
     imageData: sketchPad.toDataURL(),
     categoryId: selectedCategoryId,
+    textPrompt: promptInput?.value ?? '',
     width: sketchPad.canvas.width,
     height: sketchPad.canvas.height,
   };
 
-  onSubmit(result);
+  pendingResolve(result);
+  pendingResolve = null;
 }
 
 // --- Public API ---
 
 export interface DrawingOverlayOptions {
   categories?: DrawingCategory[];
-  onSubmit?: DrawingSubmitHandler;
+  defaultCategory?: string;
 }
 
-export function showDrawingOverlay(options: DrawingOverlayOptions = {}): void {
-  if (isVisible) return;
+export function showDrawingOverlay(options: DrawingOverlayOptions = {}): Promise<DrawingResult | null> {
+  if (isVisible) return Promise.resolve(null);
 
   const categories = options.categories ?? DEFAULT_CATEGORIES;
-  onSubmit = options.onSubmit ?? null;
 
-  overlay = buildOverlay(categories);
-  isVisible = true;
+  return new Promise<DrawingResult | null>((resolve) => {
+    pendingResolve = resolve;
+    overlay = buildOverlay(categories, options.defaultCategory);
+    isVisible = true;
+  });
 }
 
 export function hideDrawingOverlay(): void {
   if (!isVisible || !overlay) return;
+
+  // Resolve pending promise with null (cancelled)
+  if (pendingResolve) {
+    pendingResolve(null);
+    pendingResolve = null;
+  }
 
   sketchPad?.destroy();
   sketchPad = null;
@@ -440,6 +472,59 @@ export function hideDrawingOverlay(): void {
   overlay = null;
   isVisible = false;
   categoryButtons = [];
+  promptInput = null;
+  genBtn = null;
+  forgeOverlayEl = null;
+}
+
+export function showForgeProgress(): void {
+  if (!overlay) return;
+
+  forgeOverlayEl = document.createElement('div');
+  Object.assign(forgeOverlayEl.style, {
+    position: 'absolute',
+    inset: '0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0, 0, 0, 0.6)',
+    zIndex: '10001',
+    borderRadius: '12px',
+  });
+
+  const label = document.createElement('div');
+  Object.assign(label.style, {
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '28px',
+    color: '#ff9944',
+    textShadow: '0 0 12px rgba(255, 153, 68, 0.6)',
+  });
+  label.textContent = 'Forging...';
+  forgeOverlayEl.appendChild(label);
+
+  // Append to the panel (first child of overlay)
+  const panel = overlay.firstElementChild as HTMLElement;
+  if (panel) {
+    panel.style.position = 'relative';
+    panel.appendChild(forgeOverlayEl);
+  }
+
+  if (genBtn) {
+    genBtn.style.pointerEvents = 'none';
+    genBtn.style.opacity = '0.5';
+  }
+}
+
+export function hideForgeProgress(): void {
+  if (forgeOverlayEl) {
+    forgeOverlayEl.remove();
+    forgeOverlayEl = null;
+  }
+
+  if (genBtn) {
+    genBtn.style.pointerEvents = '';
+    genBtn.style.opacity = '';
+  }
 }
 
 export function isDrawingOverlayVisible(): boolean {

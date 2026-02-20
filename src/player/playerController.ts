@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { CellType } from '../dungeon/types';
 import { resolveMovement } from './collision';
+import { cheats } from '../cheats/cheatState';
 
 const MOVE_SPEED = 5;
 const MOUSE_SENSITIVITY = 0.004;
@@ -123,24 +124,29 @@ export class PlayerController {
     // Normalize diagonal movement
     const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
     if (len > 0) {
-      const speed = MOVE_SPEED * delta;
+      const speed = MOVE_SPEED * cheats.speedMultiplier * delta;
       moveX = (moveX / len) * speed;
       moveZ = (moveZ / len) * speed;
 
       const targetX = this.position.x + moveX;
       const targetZ = this.position.z + moveZ;
 
-      const resolved = resolveMovement(
-        this.grid,
-        this.position.x,
-        this.position.z,
-        targetX,
-        targetZ,
-        PLAYER_RADIUS,
-      );
+      if (cheats.noclip) {
+        this.position.x = targetX;
+        this.position.z = targetZ;
+      } else {
+        const resolved = resolveMovement(
+          this.grid,
+          this.position.x,
+          this.position.z,
+          targetX,
+          targetZ,
+          PLAYER_RADIUS,
+        );
 
-      this.position.x = resolved.x;
-      this.position.z = resolved.z;
+        this.position.x = resolved.x;
+        this.position.z = resolved.z;
+      }
     }
 
     // Apply camera transform
@@ -165,6 +171,7 @@ export class PlayerController {
 
   /** Reduce health by amount. */
   takeDamage(amount: number): void {
+    if (cheats.god) return;
     this.health = Math.max(0, this.health - amount);
   }
 

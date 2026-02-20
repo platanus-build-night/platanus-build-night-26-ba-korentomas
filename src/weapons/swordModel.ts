@@ -9,6 +9,8 @@ export class SwordModel {
   private idlePosition: THREE.Vector3;
   private idleRotation: THREE.Euler;
   private time = 0;
+  public currentWeaponName = 'Default Sword';
+  public currentWeaponId: number | null = null;
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera;
@@ -34,7 +36,7 @@ export class SwordModel {
     await this.loadGLB(buffer);
   }
 
-  private async loadGLB(buffer: ArrayBuffer): Promise<void> {
+  async loadGLB(buffer: ArrayBuffer): Promise<void> {
     this.disposeModel();
 
     const gltf = await this.loader.parseAsync(buffer, './');

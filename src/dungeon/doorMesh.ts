@@ -53,6 +53,32 @@ export function createDoorModel(orientation: 'ns' | 'ew'): THREE.Group {
   return group;
 }
 
+export function setDoorLocked(doorGroup: THREE.Group, locked: boolean): void {
+  // Door structure: group > pivot (children[0]) > panel (children[0])
+  const pivot = doorGroup.children[0] as THREE.Group;
+  if (!pivot) return;
+  const panel = pivot.children[0] as THREE.Mesh;
+  if (!panel) return;
+
+  const mat = panel.material as THREE.MeshStandardMaterial;
+
+  if (locked) {
+    // Clone material on first lock so we don't affect other doors
+    if (mat === sharedMat?.wood) {
+      const cloned = mat.clone();
+      panel.material = cloned;
+      cloned.emissive.set(0xff2222);
+      cloned.emissiveIntensity = 0.5;
+    } else {
+      mat.emissive.set(0xff2222);
+      mat.emissiveIntensity = 0.5;
+    }
+  } else {
+    mat.emissive.set(0x000000);
+    mat.emissiveIntensity = 0;
+  }
+}
+
 export function disposeDoorShared(): void {
   if (sharedGeo) {
     sharedGeo.panel.dispose();

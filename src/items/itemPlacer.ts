@@ -17,8 +17,7 @@ export function spawnItems(floor: DungeonFloor, group: THREE.Group): PlacedItem[
   const eligibleRooms = rooms.slice(1);
   if (eligibleRooms.length === 0) return items;
 
-  // 1 blueprint per floor in a random room
-  placeItem(ItemType.BLUEPRINT, pickRandomRoom(eligibleRooms), group, items);
+  // Blueprints now only come from clearing BLUEPRINT rooms — no random spawn
 
   // 0-2 health potions
   const potionCount = Math.floor(Math.random() * 3);
@@ -33,6 +32,19 @@ export function spawnItems(floor: DungeonFloor, group: THREE.Group): PlacedItem[
   }
 
   return items;
+}
+
+export function spawnBlueprintAtPosition(x: number, z: number, group: THREE.Group): PlacedItem {
+  const def = ITEM_DEFS[ItemType.BLUEPRINT];
+  const model = def.modelGenerator();
+  model.position.set(x, 0.5, z);
+  group.add(model);
+  return {
+    def,
+    model,
+    position: new THREE.Vector3(x, 0, z),
+    collected: false,
+  };
 }
 
 function pickRandomRoom(rooms: Room[]): Room {

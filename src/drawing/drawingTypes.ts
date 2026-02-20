@@ -7,6 +7,7 @@ export interface DrawingCategory {
 export interface DrawingResult {
   imageData: string;
   categoryId: string;
+  textPrompt: string;
   width: number;
   height: number;
 }

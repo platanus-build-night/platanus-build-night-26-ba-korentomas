@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { createSkeletonModel } from './models/skeletonModel';
+import { createBossModel } from './models/bossModel';
+import type { ProjectileType } from '../projectiles/projectileTypes';
+import { PROJECTILE_TYPES } from '../projectiles/projectileTypes';
 
 export interface EnemyType {
   name: string;
@@ -10,6 +13,9 @@ export interface EnemyType {
   attackCooldown: number;
   points: number;
   modelGenerator: () => THREE.Group;
+  ranged?: boolean;
+  rangedRange?: number;
+  projectileType?: ProjectileType;
 }
 
 export const ENEMY_TYPES: Record<string, EnemyType> = {
@@ -21,6 +27,29 @@ export const ENEMY_TYPES: Record<string, EnemyType> = {
     attackRange: 1.5,
     attackCooldown: 1.0,
     points: 100,
+    modelGenerator: createSkeletonModel,
+  },
+  BOSS_SKELETON: {
+    name: 'Boss Skeleton',
+    health: 150,
+    speed: 1.5,
+    damage: 25,
+    attackRange: 2.5,
+    attackCooldown: 1.5,
+    points: 500,
+    modelGenerator: createBossModel,
+  },
+  SKELETON_ARCHER: {
+    name: 'Skeleton Archer',
+    health: 20,
+    speed: 1.5,
+    damage: 0,
+    attackRange: 1.5,
+    attackCooldown: 2.0,
+    points: 150,
+    ranged: true,
+    rangedRange: 12,
+    projectileType: PROJECTILE_TYPES.ENEMY_FIREBALL,
     modelGenerator: createSkeletonModel,
   },
 };

@@ -1,5 +1,5 @@
-import { CellType } from './types';
-import type { DungeonFloor, DoorInstance, FloorConfig, Room } from './types';
+import { CellType, RoomType } from './types';
+import type { DungeonFloor, DoorInstance, FloorConfig, Room, SpawnPoint } from './types';
 
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -93,6 +93,44 @@ function isInsideRoom(col: number, row: number, rooms: Room[]): boolean {
   return false;
 }
 
+function getRoomIndexAtCell(col: number, row: number, rooms: Room[]): number {
+  for (const room of rooms) {
+    if (
+      col >= room.x &&
+      col < room.x + room.width &&
+      row >= room.y &&
+      row < room.y + room.height
+    ) {
+      return room.index;
+    }
+  }
+  return -1;
+}
+
+function findAdjacentRoomIndices(
+  gridX: number,
+  gridZ: number,
+  orientation: 'ns' | 'ew',
+  rooms: Room[],
+): number[] {
+  const indices = new Set<number>();
+  // Check cells on both sides of the door
+  if (orientation === 'ns') {
+    // Door spans east-west, corridor runs north-south — check north and south
+    const north = getRoomIndexAtCell(gridX, gridZ - 1, rooms);
+    const south = getRoomIndexAtCell(gridX, gridZ + 1, rooms);
+    if (north >= 0) indices.add(north);
+    if (south >= 0) indices.add(south);
+  } else {
+    // Door spans north-south, corridor runs east-west — check east and west
+    const west = getRoomIndexAtCell(gridX - 1, gridZ, rooms);
+    const east = getRoomIndexAtCell(gridX + 1, gridZ, rooms);
+    if (west >= 0) indices.add(west);
+    if (east >= 0) indices.add(east);
+  }
+  return Array.from(indices);
+}
+
 function placeDoors(
   grid: CellType[][],
   rooms: Room[],
@@ -114,7 +152,8 @@ function placeDoors(
         const rightFloor = col < gridW - 1 && grid[northRow][col + 1] === CellType.FLOOR;
         if (leftFloor && rightFloor) {
           grid[northRow][col] = CellType.DOOR;
-          doors.push({ gridX: col, gridZ: northRow, orientation: 'ns', isOpen: false, openProgress: 0 });
+          const adjacentRoomIndices = findAdjacentRoomIndices(col, northRow, 'ns', rooms);
+          doors.push({ gridX: col, gridZ: northRow, orientation: 'ns', isOpen: false, openProgress: 0, adjacentRoomIndices, isLocked: false });
         }
       }
     }
@@ -130,7 +169,8 @@ function placeDoors(
         const rightFloor = col < gridW - 1 && grid[southRow][col + 1] === CellType.FLOOR;
         if (leftFloor && rightFloor) {
           grid[southRow][col] = CellType.DOOR;
-          doors.push({ gridX: col, gridZ: southRow, orientation: 'ns', isOpen: false, openProgress: 0 });
+          const adjacentRoomIndices = findAdjacentRoomIndices(col, southRow, 'ns', rooms);
+          doors.push({ gridX: col, gridZ: southRow, orientation: 'ns', isOpen: false, openProgress: 0, adjacentRoomIndices, isLocked: false });
         }
       }
     }
@@ -147,7 +187,8 @@ function placeDoors(
         const downFloor = row < gridH - 1 && grid[row + 1][westCol] === CellType.FLOOR;
         if (upFloor && downFloor) {
           grid[row][westCol] = CellType.DOOR;
-          doors.push({ gridX: westCol, gridZ: row, orientation: 'ew', isOpen: false, openProgress: 0 });
+          const adjacentRoomIndices = findAdjacentRoomIndices(westCol, row, 'ew', rooms);
+          doors.push({ gridX: westCol, gridZ: row, orientation: 'ew', isOpen: false, openProgress: 0, adjacentRoomIndices, isLocked: false });
         }
       }
     }
@@ -163,7 +204,8 @@ function placeDoors(
         const downFloor = row < gridH - 1 && grid[row + 1][eastCol] === CellType.FLOOR;
         if (upFloor && downFloor) {
           grid[row][eastCol] = CellType.DOOR;
-          doors.push({ gridX: eastCol, gridZ: row, orientation: 'ew', isOpen: false, openProgress: 0 });
+          const adjacentRoomIndices = findAdjacentRoomIndices(eastCol, row, 'ew', rooms);
+          doors.push({ gridX: eastCol, gridZ: row, orientation: 'ew', isOpen: false, openProgress: 0, adjacentRoomIndices, isLocked: false });
         }
       }
     }
@@ -193,13 +235,18 @@ export function generateFloor(config: FloorConfig): DungeonFloor {
     const x = randInt(1, gridSize - w - 1);
     const y = randInt(1, gridSize - h - 1);
 
-    const candidate: Room = { x, y, width: w, height: h, connections: [] };
+    const candidate: Room = { x, y, width: w, height: h, connections: [], index: 0, type: RoomType.NORMAL };
 
     const overlaps = rooms.some((r) => roomsOverlap(r, candidate, 2));
     if (!overlaps) {
       rooms.push(candidate);
       carveRoom(grid, candidate);
     }
+  }
+
+  // Assign room indices
+  for (let i = 0; i < rooms.length; i++) {
+    rooms[i].index = i;
   }
 
   // Connect rooms with L-shaped corridors (each room to the next)
@@ -217,28 +264,79 @@ export function generateFloor(config: FloorConfig): DungeonFloor {
   // Player starts in the center of the first room
   const playerStart = roomCenter(rooms[0]);
 
-  // Exit is in the room farthest from player start
+  // --- Room type assignment ---
+  // Room 0 is always SPAWN
+  rooms[0].type = RoomType.SPAWN;
+
+  // Find farthest room from spawn for BOSS
   let farthestDist = -1;
-  let farthestRoom = rooms[rooms.length - 1];
+  let bossRoomIdx = rooms.length - 1;
   for (let i = 1; i < rooms.length; i++) {
     const center = roomCenter(rooms[i]);
     const d = distanceSq(playerStart, center);
     if (d > farthestDist) {
       farthestDist = d;
-      farthestRoom = rooms[i];
+      bossRoomIdx = i;
     }
   }
-  const exitPosition = roomCenter(farthestRoom);
 
-  // Generate spawn points: 2-4 random floor cells per room (excluding player start room)
-  const spawnPoints: { x: number; z: number }[] = [];
-  for (let i = 1; i < rooms.length; i++) {
+  // If boss room is smaller than 8x8, swap with the largest room that's far from spawn
+  if (rooms[bossRoomIdx].width < 8 || rooms[bossRoomIdx].height < 8) {
+    let bestSwapIdx = bossRoomIdx;
+    let bestArea = 0;
+    const spawnCenter = playerStart;
+    for (let i = 1; i < rooms.length; i++) {
+      if (i === bossRoomIdx) continue;
+      const area = rooms[i].width * rooms[i].height;
+      const center = roomCenter(rooms[i]);
+      const d = distanceSq(spawnCenter, center);
+      // Prefer large rooms that are at least half the max distance from spawn
+      if (area > bestArea && d > farthestDist * 0.5) {
+        bestArea = area;
+        bestSwapIdx = i;
+      }
+    }
+    if (bestSwapIdx !== bossRoomIdx && (rooms[bestSwapIdx].width >= 8 || rooms[bestSwapIdx].height >= 8)) {
+      bossRoomIdx = bestSwapIdx;
+    }
+  }
+
+  rooms[bossRoomIdx].type = RoomType.BOSS;
+
+  // Pick 1 BLUEPRINT room — prefer deeper rooms, excluding spawn and boss
+  const candidates = rooms
+    .filter((r) => r.type === RoomType.NORMAL)
+    .sort((a, b) => {
+      const da = distanceSq(playerStart, roomCenter(a));
+      const db = distanceSq(playerStart, roomCenter(b));
+      return db - da; // farthest first
+    });
+  if (candidates.length > 0) {
+    candidates[0].type = RoomType.BLUEPRINT;
+  }
+
+  // Exit is in the boss room
+  const exitPosition = roomCenter(rooms[bossRoomIdx]);
+
+  // Generate spawn points with room index and boss flag
+  const spawnPoints: SpawnPoint[] = [];
+  for (let i = 0; i < rooms.length; i++) {
     const room = rooms[i];
-    const count = randInt(2, 4);
-    for (let s = 0; s < count; s++) {
-      const sx = randInt(room.x + 1, room.x + room.width - 2);
-      const sz = randInt(room.y + 1, room.y + room.height - 2);
-      spawnPoints.push({ x: sx, z: sz });
+    // Skip SPAWN room for enemy spawn points
+    if (room.type === RoomType.SPAWN) continue;
+
+    if (room.type === RoomType.BOSS) {
+      // Boss room gets a single boss spawn point at center
+      const center = roomCenter(room);
+      spawnPoints.push({ x: center.x, z: center.z, roomIndex: room.index, isBoss: true });
+    } else {
+      // Normal/Blueprint rooms get 2-4 random spawn points
+      const count = randInt(2, 4);
+      for (let s = 0; s < count; s++) {
+        const sx = randInt(room.x + 1, room.x + room.width - 2);
+        const sz = randInt(room.y + 1, room.y + room.height - 2);
+        spawnPoints.push({ x: sx, z: sz, roomIndex: room.index, isBoss: false });
+      }
     }
   }
 

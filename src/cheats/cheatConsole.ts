@@ -11,6 +11,7 @@ let isOpen = false;
 const history: string[] = [];
 let historyIndex = -1;
 let toastTimeout = 0;
+let onCloseCb: (() => void) | null = null;
 
 function createDOM(): void {
   // Container
@@ -198,6 +199,11 @@ function close(): void {
   isOpen = false;
   container.style.display = 'none';
   inputEl.blur();
+  onCloseCb?.();
+}
+
+export function setOnCloseCallback(cb: () => void): void {
+  onCloseCb = cb;
 }
 
 export function isConsoleOpen(): boolean {

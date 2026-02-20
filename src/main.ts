@@ -9,10 +9,12 @@ import { GameStateType } from './game/gameState';
 import { createGameLoop, GameLoopContext } from './game/gameLoop';
 import { createFadeOverlay, fadeToBlack, fadeFromBlack } from './game/transition';
 import { AudioManager, MusicPlayer, SfxPlayer, AudioEvent } from './audio';
+import { initCheatConsole } from './cheats/cheatConsole';
+import { registerDefaultCheats } from './cheats/defaultCheats';
 
 async function init() {
   const { scene, camera, renderer, ambientLight, fog } = createScene();
-  const { composer, bloomPass: _bloom, retroPass } = setupComposer(renderer, scene, camera);
+  const { composer, bloomPass, retroPass } = setupComposer(renderer, scene, camera);
   const fadeOverlay = createFadeOverlay();
 
   // Audio system
@@ -23,6 +25,10 @@ async function init() {
   // Resume audio context on first user gesture (browser autoplay policy)
   const resumeAudio = () => { audioManager.resume(); };
   document.addEventListener('click', resumeAudio, { once: true });
+
+  // Initialize cheat console
+  initCheatConsole();
+  registerDefaultCheats({ scene, camera, bloomPass, retroPass });
 
   let state = GameStateType.MENU;
   let gameLoop: GameLoopContext | null = null;
