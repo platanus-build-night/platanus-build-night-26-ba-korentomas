@@ -6,6 +6,11 @@ import { createTitleText } from './scene/titleText';
 import { createMenuItems } from './scene/menuItems';
 import { setupComposer } from './postprocessing/setupComposer';
 import { createDebugPanel } from './debugPanel';
+import {
+  showDrawingOverlay,
+  hideDrawingOverlay,
+  isDrawingOverlayVisible,
+} from './drawing/drawingOverlay';
 
 async function init() {
   const { scene, camera, renderer } = createScene();
@@ -43,6 +48,29 @@ async function init() {
     bloomPass,
     retroPass,
     fog: scene.fog as THREE.FogExp2,
+  });
+
+  // Drawing overlay (press D to open)
+  window.addEventListener('keydown', (e) => {
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+    if (e.key === 'd' || e.key === 'D') {
+      e.preventDefault();
+      if (isDrawingOverlayVisible()) {
+        hideDrawingOverlay();
+      } else {
+        showDrawingOverlay({
+          onSubmit: (result) => {
+            console.log('Drawing submitted:', result.categoryId, result.imageData.length);
+            hideDrawingOverlay();
+          },
+        });
+      }
+    }
   });
 
   let lastTime = performance.now();
