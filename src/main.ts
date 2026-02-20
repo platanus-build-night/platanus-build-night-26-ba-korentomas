@@ -6,6 +6,8 @@ import { createTitleText } from './scene/titleText';
 import { createMenuItems } from './scene/menuItems';
 import { setupComposer } from './postprocessing/setupComposer';
 import { createDebugPanel } from './debugPanel';
+import { initCheatConsole } from './cheats/cheatConsole';
+import { registerDefaultCheats } from './cheats/defaultCheats';
 
 async function init() {
   const { scene, camera, renderer } = createScene();
@@ -44,6 +46,10 @@ async function init() {
     retroPass,
     fog: scene.fog as THREE.FogExp2,
   });
+
+  // Cheat console (press T to open)
+  registerDefaultCheats({ scene, camera, bloomPass, retroPass });
+  initCheatConsole();
 
   let lastTime = performance.now();
 
