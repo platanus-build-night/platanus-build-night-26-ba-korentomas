@@ -4,6 +4,7 @@ import {
   createStoneFloorTexture,
   createCeilingTexture,
 } from '../utils/proceduralTextures';
+import { cheats } from '../cheats/cheatState';
 
 export const SEGMENT_LENGTH = 10;
 const POOL_SIZE = 20;
@@ -96,7 +97,7 @@ export function updateCorridor(
   delta: number,
   time: number
 ): void {
-  state.cameraZ -= CAMERA_SPEED * delta;
+  state.cameraZ -= CAMERA_SPEED * cheats.speedMultiplier * delta;
   camera.position.z = state.cameraZ;
   camera.position.x = Math.sin(time * SWAY_FREQ) * SWAY_AMPLITUDE;
   camera.position.y = 2.5 + Math.sin(time * SWAY_FREQ * 1.3) * 0.05;

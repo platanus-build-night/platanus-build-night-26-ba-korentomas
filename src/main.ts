@@ -11,6 +11,8 @@ import {
   hideDrawingOverlay,
   isDrawingOverlayVisible,
 } from './drawing/drawingOverlay';
+import { initCheatConsole } from './cheats/cheatConsole';
+import { registerDefaultCheats } from './cheats/defaultCheats';
 
 async function init() {
   const { scene, camera, renderer } = createScene();
@@ -72,6 +74,11 @@ async function init() {
       }
     }
   });
+
+  // Cheat console (press T to open)
+  registerDefaultCheats({ scene, camera, bloomPass, retroPass });
+  initCheatConsole();
+
 
   let lastTime = performance.now();
 
