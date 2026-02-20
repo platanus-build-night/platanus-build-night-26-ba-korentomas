@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Favicon Forge - DungeonSlopper</title>
+    <link rel="stylesheet" href="/src/favicon/favicon.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Favicon Forge</h1>
+        <p class="subtitle">Sketch your icon, forge it in pixels</p>
+      </header>
+
+      <main class="forge-layout">
+        <section class="sketch-section">
+          <div class="section-header">
+            <h2>Sketch</h2>
+            <div class="sketch-controls">
+              <button id="undo-btn">Undo</button>
+              <button id="clear-btn">Clear</button>
+            </div>
+          </div>
+          <canvas id="sketch-canvas" width="640" height="640"></canvas>
+          <div class="weapon-types">
+            <button class="weapon-type-btn selected" data-type="dark-dungeon">&#x1F3F0; Dark Dungeon</button>
+            <button class="weapon-type-btn" data-type="retro-8bit">&#x1F47E; Retro 8-bit</button>
+            <button class="weapon-type-btn" data-type="neon-glow">&#x1F49C; Neon Glow</button>
+            <button class="weapon-type-btn" data-type="parchment">&#x1F4DC; Parchment</button>
+            <button class="weapon-type-btn" data-type="fire-lava">&#x1F525; Fire & Lava</button>
+          </div>
+          <textarea id="favicon-description" class="description-input" placeholder="Describe your icon... e.g. 'green slime dripping from a torch'" rows="2"></textarea>
+          <div class="forge-controls">
+            <input id="favicon-name" type="text" placeholder="Name your favicon..." maxlength="100" />
+            <button id="forge-btn">Forge</button>
+          </div>
+          <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <p>Forging favicon...</p>
+          </div>
+        </section>
+
+        <section class="viewer-section">
+          <h2>Preview</h2>
+          <div id="preview-container"></div>
+        </section>
+      </main>
+
+      <section class="gallery-section">
+        <h2>Collection</h2>
+        <div id="gallery" class="gallery"></div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/favicon/main.ts"></script>
+  </body>
+</html>

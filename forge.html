@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weapon Forge - DungeonSlopper</title>
+    <link rel="stylesheet" href="/src/forge/forge.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Weapon Forge</h1>
+        <p class="subtitle">Sketch your weapon, forge it in 3D</p>
+      </header>
+
+      <main class="forge-layout">
+        <section class="sketch-section">
+          <div class="section-header">
+            <h2>Sketch</h2>
+            <div class="sketch-controls">
+              <button id="undo-btn">Undo</button>
+              <button id="clear-btn">Clear</button>
+            </div>
+          </div>
+          <canvas id="sketch-canvas" width="640" height="640"></canvas>
+          <div class="weapon-types">
+            <button class="weapon-type-btn selected" data-type="sword">⚔️ Sword</button>
+            <button class="weapon-type-btn" data-type="staff">🪄 Staff</button>
+            <button class="weapon-type-btn" data-type="dual-daggers">🗡️ Dual Daggers</button>
+            <button class="weapon-type-btn" data-type="hammer">🔨 Hammer</button>
+            <button class="weapon-type-btn" data-type="axe">🪓 Axe</button>
+            <button class="weapon-type-btn" data-type="bow">🏹 Bow</button>
+            <button class="weapon-type-btn" data-type="spear">🔱 Spear</button>
+            <button class="weapon-type-btn" data-type="mace">⚜️ Mace</button>
+          </div>
+          <textarea id="weapon-description" class="description-input" placeholder="Describe materials, properties... e.g. 'obsidian blade with golden runes'" rows="2"></textarea>
+          <div class="forge-controls">
+            <input id="weapon-name" type="text" placeholder="Name your weapon..." maxlength="100" />
+            <button id="forge-btn">Forge</button>
+          </div>
+          <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <p>Forging weapon...</p>
+          </div>
+        </section>
+
+        <section class="viewer-section">
+          <h2>3D Preview</h2>
+          <div id="viewer-container"></div>
+        </section>
+      </main>
+
+      <section class="gallery-section">
+        <h2>Armory</h2>
+        <div id="gallery" class="gallery"></div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/forge/main.ts"></script>
+  </body>
+</html>
