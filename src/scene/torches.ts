@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { CorridorState } from './corridor';
+import { CorridorSegment } from './corridor';
 
-const TORCH_INTERVAL = 8;
 const CORRIDOR_WIDTH = 5;
+const SEGMENT_LENGTH = 10;
 
 interface Torch {
   light: THREE.PointLight;
@@ -11,8 +11,7 @@ interface Torch {
   phaseOffset: number;
 }
 
-let torches: Torch[] = [];
-let fireTexture: THREE.Texture | null = null;
+const torches: Torch[] = [];
 
 function createFireTexture(): THREE.Texture {
   const size = 64;
@@ -32,89 +31,69 @@ function createFireTexture(): THREE.Texture {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
-  const tex = new THREE.CanvasTexture(canvas);
-  return tex;
+  return new THREE.CanvasTexture(canvas);
 }
 
-function createTorchMesh(): THREE.Group {
-  const group = new THREE.Group();
+export function createTorches(segments: CorridorSegment[]): void {
+  const fireTexture = createFireTexture();
 
-  // Bracket (small cylinder attached to wall)
+  // Shared geometries and materials for all torch meshes
   const bracketGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6);
   const bracketMat = new THREE.MeshStandardMaterial({
     color: 0x333333,
     roughness: 0.7,
     metalness: 0.8,
   });
-  const bracket = new THREE.Mesh(bracketGeo, bracketMat);
-  bracket.rotation.z = Math.PI / 2;
-  group.add(bracket);
-
-  // Torch pole (vertical cylinder)
   const poleGeo = new THREE.CylinderGeometry(0.04, 0.05, 0.5, 6);
   const poleMat = new THREE.MeshStandardMaterial({
     color: 0x4a3520,
     roughness: 0.9,
     metalness: 0.1,
   });
-  const pole = new THREE.Mesh(poleGeo, poleMat);
-  pole.position.set(0.15, 0.15, 0);
-  group.add(pole);
+  const spriteMat = new THREE.SpriteMaterial({
+    map: fireTexture,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 0.9,
+  });
 
-  return group;
-}
+  // Add a torch to each side of every segment, as children of the segment group
+  for (const seg of segments) {
+    for (const isLeft of [true, false]) {
+      const x = isLeft ? -CORRIDOR_WIDTH / 2 + 0.1 : CORRIDOR_WIDTH / 2 - 0.1;
+      const y = 3.0;
+      const z = -SEGMENT_LENGTH / 2; // centered in segment (local coords)
 
-export function createTorches(
-  scene: THREE.Scene,
-  corridorState: CorridorState
-): void {
-  fireTexture = createFireTexture();
+      // Torch mesh
+      const torchGroup = new THREE.Group();
+      const bracket = new THREE.Mesh(bracketGeo, bracketMat);
+      bracket.rotation.z = Math.PI / 2;
+      torchGroup.add(bracket);
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.set(isLeft ? 0.15 : -0.15, 0.15, 0);
+      torchGroup.add(pole);
+      torchGroup.position.set(x, y, z);
+      seg.group.add(torchGroup);
 
-  const totalLength = corridorState.segments.length * 10;
-  const numTorches = Math.floor(totalLength / TORCH_INTERVAL) * 2;
+      // Point light
+      const lightX = isLeft ? x + 0.3 : x - 0.3;
+      const light = new THREE.PointLight(0xff8830, 1.5, 15, 1.5);
+      light.position.set(lightX, y + 0.4, z);
+      seg.group.add(light);
 
-  for (let i = 0; i < numTorches; i++) {
-    const pairIndex = Math.floor(i / 2);
-    const isLeft = i % 2 === 0;
-    const z = -pairIndex * TORCH_INTERVAL - 4; // offset slightly
+      // Fire sprite
+      const sprite = new THREE.Sprite(spriteMat.clone());
+      sprite.scale.set(0.5, 0.6, 1);
+      sprite.position.set(lightX, y + 0.35, z);
+      seg.group.add(sprite);
 
-    const x = isLeft ? -CORRIDOR_WIDTH / 2 + 0.1 : CORRIDOR_WIDTH / 2 - 0.1;
-    const y = 3.0;
-
-    // Torch mesh
-    const torchMesh = createTorchMesh();
-    if (!isLeft) torchMesh.scale.x = -1;
-    torchMesh.position.set(x, y, z);
-    scene.add(torchMesh);
-
-    // Point light
-    const light = new THREE.PointLight(0xff8830, 1.5, 15, 1.5);
-    light.position.set(
-      isLeft ? x + 0.3 : x - 0.3,
-      y + 0.4,
-      z
-    );
-    scene.add(light);
-
-    // Fire sprite
-    const spriteMat = new THREE.SpriteMaterial({
-      map: fireTexture,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(0.5, 0.6, 1);
-    sprite.position.copy(light.position);
-    sprite.position.y -= 0.05;
-    scene.add(sprite);
-
-    torches.push({
-      light,
-      sprite,
-      baseIntensity: 1.2 + Math.random() * 0.6,
-      phaseOffset: Math.random() * Math.PI * 2,
-    });
+      torches.push({
+        light,
+        sprite,
+        baseIntensity: 1.2 + Math.random() * 0.6,
+        phaseOffset: Math.random() * Math.PI * 2,
+      });
+    }
   }
 }
 
@@ -128,7 +107,6 @@ export function updateTorches(time: number): void {
 
     torch.light.intensity = torch.baseIntensity + flicker;
 
-    // Scale sprite slightly with flicker
     const scale = 1 + flicker * 0.3;
     torch.sprite.scale.set(0.5 * scale, 0.6 * scale, 1);
   }

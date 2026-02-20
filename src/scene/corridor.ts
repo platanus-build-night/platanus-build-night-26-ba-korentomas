@@ -106,13 +106,6 @@ export function updateCorridor(
 
   // Recycle segments that are behind the camera
   const recycleThreshold = state.cameraZ + SEGMENT_LENGTH;
-  let furthestZ = state.cameraZ;
-  for (const seg of state.segments) {
-    if (seg.zStart + SEGMENT_LENGTH < furthestZ) {
-      furthestZ = seg.zStart;
-    }
-  }
-  // Find the furthest segment ahead
   let mostAheadZ = state.cameraZ;
   for (const seg of state.segments) {
     if (seg.zStart < mostAheadZ) {

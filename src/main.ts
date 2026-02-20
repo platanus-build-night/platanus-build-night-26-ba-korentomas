@@ -11,8 +11,8 @@ async function init() {
   // Build corridor
   const corridorState = createCorridor(scene);
 
-  // Add torches
-  createTorches(scene, corridorState);
+  // Add torches as children of corridor segments (recycle with them)
+  createTorches(corridorState.segments);
 
   // Load title and subtitle text
   await Promise.all([
