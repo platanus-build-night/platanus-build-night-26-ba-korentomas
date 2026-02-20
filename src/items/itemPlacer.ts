@@ -1,0 +1,64 @@
+import * as THREE from 'three';
+import type { DungeonFloor, Room } from '../dungeon/types';
+import { ItemType, ITEM_DEFS, type ItemDef } from './itemTypes';
+
+export interface PlacedItem {
+  def: ItemDef;
+  model: THREE.Group;
+  position: THREE.Vector3;
+  collected: boolean;
+}
+
+export function spawnItems(floor: DungeonFloor, group: THREE.Group): PlacedItem[] {
+  const items: PlacedItem[] = [];
+  const { rooms } = floor;
+
+  // Skip room 0 (player start room)
+  const eligibleRooms = rooms.slice(1);
+  if (eligibleRooms.length === 0) return items;
+
+  // 1 blueprint per floor in a random room
+  placeItem(ItemType.BLUEPRINT, pickRandomRoom(eligibleRooms), group, items);
+
+  // 0-2 health potions
+  const potionCount = Math.floor(Math.random() * 3);
+  for (let i = 0; i < potionCount; i++) {
+    placeItem(ItemType.HEALTH_POTION, pickRandomRoom(eligibleRooms), group, items);
+  }
+
+  // 3-5 score gems
+  const gemCount = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < gemCount; i++) {
+    placeItem(ItemType.SCORE_GEM, pickRandomRoom(eligibleRooms), group, items);
+  }
+
+  return items;
+}
+
+function pickRandomRoom(rooms: Room[]): Room {
+  return rooms[Math.floor(Math.random() * rooms.length)];
+}
+
+function placeItem(
+  type: ItemType,
+  room: Room,
+  group: THREE.Group,
+  items: PlacedItem[],
+): void {
+  const def = ITEM_DEFS[type];
+  const model = def.modelGenerator();
+
+  // Random position within room (avoid edges)
+  const x = room.x + 2 + Math.random() * Math.max(0, room.width - 4);
+  const z = room.y + 2 + Math.random() * Math.max(0, room.height - 4);
+
+  model.position.set(x, 0.5, z); // Float above ground
+  group.add(model);
+
+  items.push({
+    def,
+    model,
+    position: new THREE.Vector3(x, 0, z),
+    collected: false,
+  });
+}

@@ -4,6 +4,8 @@ export interface SceneContext {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
+  ambientLight: THREE.AmbientLight;
+  fog: THREE.FogExp2;
 }
 
 export function createScene(): SceneContext {
@@ -34,5 +36,5 @@ export function createScene(): SceneContext {
   const ambient = new THREE.AmbientLight(0x111111);
   scene.add(ambient);
 
-  return { scene, camera, renderer };
+  return { scene, camera, renderer, ambientLight: ambient, fog: scene.fog as THREE.FogExp2 };
 }
