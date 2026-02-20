@@ -5,9 +5,9 @@ import {
   createCeilingTexture,
 } from '../utils/proceduralTextures';
 
-const SEGMENT_LENGTH = 10;
+export const SEGMENT_LENGTH = 10;
 const POOL_SIZE = 20;
-const CORRIDOR_WIDTH = 5;
+export const CORRIDOR_WIDTH = 5;
 const CORRIDOR_HEIGHT = 5;
 const CAMERA_SPEED = 2;
 const SWAY_AMPLITUDE = 0.15;
@@ -93,13 +93,11 @@ export function createCorridor(scene: THREE.Scene): CorridorState {
 export function updateCorridor(
   state: CorridorState,
   camera: THREE.PerspectiveCamera,
-  delta: number
+  delta: number,
+  time: number
 ): void {
   state.cameraZ -= CAMERA_SPEED * delta;
   camera.position.z = state.cameraZ;
-
-  // Subtle sway
-  const time = performance.now() / 1000;
   camera.position.x = Math.sin(time * SWAY_FREQ) * SWAY_AMPLITUDE;
   camera.position.y = 2.5 + Math.sin(time * SWAY_FREQ * 1.3) * 0.05;
   camera.rotation.z = Math.sin(time * SWAY_FREQ * 0.7) * 0.008;

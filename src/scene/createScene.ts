@@ -20,10 +20,8 @@ export function createScene(): SceneContext {
 
   const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.BasicShadowMap;
   document.body.appendChild(renderer.domElement);
 
   window.addEventListener('resize', () => {

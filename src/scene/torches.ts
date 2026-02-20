@@ -1,17 +1,17 @@
 import * as THREE from 'three';
-import { CorridorSegment } from './corridor';
+import { CorridorSegment, CORRIDOR_WIDTH, SEGMENT_LENGTH } from './corridor';
 
-const CORRIDOR_WIDTH = 5;
-const SEGMENT_LENGTH = 10;
+const MAX_ACTIVE_LIGHTS = 6;
 
 interface Torch {
   light: THREE.PointLight;
   sprite: THREE.Sprite;
+  segment: CorridorSegment;
   baseIntensity: number;
   phaseOffset: number;
 }
 
-const torches: Torch[] = [];
+let torches: Torch[] = [];
 
 function createFireTexture(): THREE.Texture {
   const size = 64;
@@ -35,9 +35,9 @@ function createFireTexture(): THREE.Texture {
 }
 
 export function createTorches(segments: CorridorSegment[]): void {
+  torches = [];
   const fireTexture = createFireTexture();
 
-  // Shared geometries and materials for all torch meshes
   const bracketGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6);
   const bracketMat = new THREE.MeshStandardMaterial({
     color: 0x333333,
@@ -57,14 +57,12 @@ export function createTorches(segments: CorridorSegment[]): void {
     opacity: 0.9,
   });
 
-  // Add a torch to each side of every segment, as children of the segment group
   for (const seg of segments) {
     for (const isLeft of [true, false]) {
       const x = isLeft ? -CORRIDOR_WIDTH / 2 + 0.1 : CORRIDOR_WIDTH / 2 - 0.1;
       const y = 3.0;
-      const z = -SEGMENT_LENGTH / 2; // centered in segment (local coords)
+      const z = -SEGMENT_LENGTH / 2;
 
-      // Torch mesh
       const torchGroup = new THREE.Group();
       const bracket = new THREE.Mesh(bracketGeo, bracketMat);
       bracket.rotation.z = Math.PI / 2;
@@ -75,13 +73,12 @@ export function createTorches(segments: CorridorSegment[]): void {
       torchGroup.position.set(x, y, z);
       seg.group.add(torchGroup);
 
-      // Point light
       const lightX = isLeft ? x + 0.3 : x - 0.3;
       const light = new THREE.PointLight(0xff8830, 1.5, 15, 1.5);
       light.position.set(lightX, y + 0.4, z);
+      light.visible = false; // start disabled, updateTorches enables nearest
       seg.group.add(light);
 
-      // Fire sprite
       const sprite = new THREE.Sprite(spriteMat.clone());
       sprite.scale.set(0.5, 0.6, 1);
       sprite.position.set(lightX, y + 0.35, z);
@@ -90,6 +87,7 @@ export function createTorches(segments: CorridorSegment[]): void {
       torches.push({
         light,
         sprite,
+        segment: seg,
         baseIntensity: 1.2 + Math.random() * 0.6,
         phaseOffset: Math.random() * Math.PI * 2,
       });
@@ -97,7 +95,27 @@ export function createTorches(segments: CorridorSegment[]): void {
   }
 }
 
-export function updateTorches(time: number): void {
+export function updateTorches(time: number, cameraZ: number): void {
+  // Sort torches by distance to camera and only enable nearest lights
+  for (const torch of torches) {
+    torch.light.visible = false;
+    torch.light.intensity = 0;
+  }
+
+  // Find nearest torches and enable their lights
+  const sorted = torches
+    .map((t, i) => ({
+      index: i,
+      dist: Math.abs((t.segment.zStart + t.light.position.z) - cameraZ),
+    }))
+    .sort((a, b) => a.dist - b.dist);
+
+  for (let i = 0; i < Math.min(MAX_ACTIVE_LIGHTS, sorted.length); i++) {
+    const torch = torches[sorted[i].index];
+    torch.light.visible = true;
+  }
+
+  // Update flicker for all torches (sprites always animate, lights only if visible)
   for (const torch of torches) {
     const flicker =
       Math.sin(time * 8 + torch.phaseOffset) * 0.15 +
@@ -105,7 +123,9 @@ export function updateTorches(time: number): void {
       Math.sin(time * 21 + torch.phaseOffset * 0.7) * 0.05 +
       (Math.random() - 0.5) * 0.15;
 
-    torch.light.intensity = torch.baseIntensity + flicker;
+    if (torch.light.visible) {
+      torch.light.intensity = torch.baseIntensity + flicker;
+    }
 
     const scale = 1 + flicker * 0.3;
     torch.sprite.scale.set(0.5 * scale, 0.6 * scale, 1);

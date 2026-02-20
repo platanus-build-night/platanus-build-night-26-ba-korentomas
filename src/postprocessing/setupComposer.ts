@@ -2,15 +2,13 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import {
-  createFilmGrainPass,
-  createCrtScanlinePass,
-  createColorGradePass,
-} from './retroShaderPass';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { createRetroPass } from './retroShaderPass';
 
 export interface ComposerContext {
   composer: EffectComposer;
-  filmGrainPass: ReturnType<typeof createFilmGrainPass>;
+  bloomPass: UnrealBloomPass;
+  retroPass: ShaderPass;
 }
 
 export function setupComposer(
@@ -19,37 +17,27 @@ export function setupComposer(
   camera: THREE.PerspectiveCamera
 ): ComposerContext {
   const composer = new EffectComposer(renderer);
+  composer.setPixelRatio(renderer.getPixelRatio());
 
-  // 1. Render pass
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
 
-  // 2. Bloom
   const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
     0.6,  // strength
-    0.4,  // radius
-    0.8   // threshold
+    0.5,  // radius
+    0.6   // threshold
   );
   composer.addPass(bloomPass);
 
-  // 3. Film grain
-  const filmGrainPass = createFilmGrainPass();
-  composer.addPass(filmGrainPass);
+  const retroPass = createRetroPass();
+  composer.addPass(retroPass);
 
-  // 4. CRT scanlines + vignette
-  const crtPass = createCrtScanlinePass();
-  composer.addPass(crtPass);
-
-  // 5. Color grade
-  const colorGradePass = createColorGradePass();
-  composer.addPass(colorGradePass);
-
-  // Handle resize
   window.addEventListener('resize', () => {
     composer.setSize(window.innerWidth, window.innerHeight);
-    bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    bloomPass.resolution.set(window.innerWidth / 2, window.innerHeight / 2);
   });
 
-  return { composer, filmGrainPass };
+  return { composer, bloomPass, retroPass };
 }
