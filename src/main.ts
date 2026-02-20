@@ -13,6 +13,10 @@ import {
 } from './drawing/drawingOverlay';
 import { initCheatConsole } from './cheats/cheatConsole';
 import { registerDefaultCheats } from './cheats/defaultCheats';
+import { forgeEnemy } from './api/enemyApi';
+import { loadEnemyModel } from './enemy/enemyLoader';
+import { createEnemyInstance, EnemyInstance } from './enemy/enemyController';
+import { createGenerationOverlay } from './enemy/generationOverlay';
 
 async function init() {
   const { scene, camera, renderer } = createScene();
@@ -52,6 +56,10 @@ async function init() {
     fog: scene.fog as THREE.FogExp2,
   });
 
+  // Enemy generation state
+  const generationOverlay = createGenerationOverlay();
+  let activeEnemy: EnemyInstance | null = null;
+
   // Drawing overlay (press D to open)
   window.addEventListener('keydown', (e) => {
     if (
@@ -66,9 +74,36 @@ async function init() {
         hideDrawingOverlay();
       } else {
         showDrawingOverlay({
-          onSubmit: (result) => {
-            console.log('Drawing submitted:', result.categoryId, result.imageData.length);
+          onSubmit: async (result) => {
             hideDrawingOverlay();
+
+            if (result.categoryId !== 'enemy') {
+              console.log('Drawing submitted:', result.categoryId, result.imageData.length);
+              return;
+            }
+
+            generationOverlay.show();
+
+            try {
+              generationOverlay.setStage('mesh', 'Conjuring form...');
+              const forgeResult = await forgeEnemy(result.imageData, (progress) => {
+                generationOverlay.setStage(progress.stage, progress.message);
+              });
+
+              generationOverlay.setStage('loading', 'Summoning creature...');
+              const enemyModel = await loadEnemyModel(forgeResult.animations);
+
+              activeEnemy?.dispose();
+              const spawnZ = corridorState.cameraZ - 30;
+              activeEnemy = createEnemyInstance(enemyModel, scene, spawnZ);
+
+              generationOverlay.hide();
+            } catch (err) {
+              console.error('Enemy forge failed:', err);
+              generationOverlay.setError(
+                err instanceof Error ? err.message : 'Unknown error'
+              );
+            }
           },
         });
       }
@@ -92,6 +127,7 @@ async function init() {
 
     updateCorridor(corridorState, camera, delta, time);
     updateTorches(time, corridorState.cameraZ);
+    activeEnemy?.update(delta, corridorState.cameraZ);
     retroPass.uniforms['time'].value = time;
 
     // Menu hover glow
