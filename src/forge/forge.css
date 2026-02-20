@@ -1,0 +1,281 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  color: #ff6b35;
+  text-shadow: 0 0 20px rgba(255, 107, 53, 0.3);
+}
+
+.subtitle {
+  color: #888;
+  margin-top: 0.25rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  color: #ccc;
+  margin-bottom: 0.75rem;
+}
+
+.forge-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.sketch-section {
+  position: relative;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.section-header h2 {
+  margin-bottom: 0;
+}
+
+.sketch-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#sketch-canvas {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #fff;
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.weapon-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.weapon-type-btn {
+  background: #16213e;
+  color: #aaa;
+  border: 1px solid #333;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.weapon-type-btn:hover {
+  background: #1a2a4a;
+  color: #ddd;
+  border-color: #555;
+}
+
+.weapon-type-btn.selected {
+  background: rgba(255, 107, 53, 0.15);
+  color: #ff6b35;
+  border-color: #ff6b35;
+}
+
+.description-input {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #16213e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.description-input::placeholder {
+  color: #666;
+}
+
+.forge-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+#weapon-name {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: #16213e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
+
+#weapon-name::placeholder {
+  color: #666;
+}
+
+button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.sketch-controls button {
+  background: #16213e;
+  color: #aaa;
+  border: 1px solid #333;
+}
+
+.sketch-controls button:hover {
+  background: #1a2a4a;
+  color: #ddd;
+}
+
+#forge-btn {
+  background: #ff6b35;
+  color: #fff;
+  padding: 0.6rem 2rem;
+  font-size: 1rem;
+}
+
+#forge-btn:hover {
+  background: #ff8c5a;
+}
+
+#forge-btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(26, 26, 46, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #333;
+  border-top-color: #ff6b35;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.viewer-section {
+  display: flex;
+  flex-direction: column;
+}
+
+#viewer-container {
+  flex: 1;
+  min-height: 400px;
+  background: #0f0f23;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.gallery-section {
+  border-top: 1px solid #333;
+  padding-top: 1.5rem;
+}
+
+.gallery {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.gallery:empty::after {
+  content: 'No weapons forged yet. Draw a sketch and click Forge!';
+  color: #555;
+  font-style: italic;
+}
+
+.weapon-card {
+  flex: 0 0 160px;
+  background: #16213e;
+  border-radius: 8px;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 2px solid transparent;
+}
+
+.weapon-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(255, 107, 53, 0.2);
+  border-color: #ff6b35;
+}
+
+.weapon-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.weapon-card .weapon-name {
+  font-size: 0.8rem;
+  color: #ccc;
+  margin-top: 0.4rem;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .forge-layout {
+    grid-template-columns: 1fr;
+  }
+}
