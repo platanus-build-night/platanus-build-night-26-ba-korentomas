@@ -54,6 +54,7 @@ export const ENEMY_TYPES: SubtypeOption[] = [
   { id: 'slime', label: 'Slime', icon: '\u{1F7E2}' },
   { id: 'dragon', label: 'Dragon', icon: '\u{1F409}' },
   { id: 'golem', label: 'Golem', icon: '\u{1FAA8}' },
+  { id: 'other', label: 'Other', icon: '\u2753' },
 ];
 
 export const DECORATION_TYPES: SubtypeOption[] = [
@@ -65,6 +66,7 @@ export const DECORATION_TYPES: SubtypeOption[] = [
   { id: 'chest', label: 'Chest', icon: '\u{1F4B0}' },
   { id: 'banner', label: 'Banner', icon: '\u{1F6A9}' },
   { id: 'torch', label: 'Torch', icon: '\u{1F525}' },
+  { id: 'other', label: 'Other', icon: '\u2753' },
 ];
 
 /** Get the subtype options for a given category */
