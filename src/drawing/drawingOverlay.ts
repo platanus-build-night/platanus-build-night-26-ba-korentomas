@@ -423,11 +423,13 @@ function rebuildSubtypeBar(): void {
       padding: '0',
       cursor: 'pointer',
       display: 'block',
+      flex: '0 1 80px',
+      minWidth: '50px',
     });
     const btnCanvas = document.createElement('canvas');
     btnCanvas.width = 80;
     btnCanvas.height = 44;
-    Object.assign(btnCanvas.style, { width: '80px', height: 'auto' });
+    Object.assign(btnCanvas.style, { width: '100%', height: 'auto' });
     btn.appendChild(btnCanvas);
     drawSubtypeButton(btnCanvas, st, st.id === selectedSubtype);
 
@@ -512,11 +514,11 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   Object.assign(subtypeContainer.style, {
     display: 'none',
     flexDirection: 'row',
-    gap: '4px',
+    gap: '3px',
     padding: '6px 8px',
     flexShrink: '0',
     justifyContent: 'center',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
   });
   leftColumn.appendChild(subtypeContainer);
   rebuildSubtypeBar();
