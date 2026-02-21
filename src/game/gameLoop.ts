@@ -37,6 +37,7 @@ import { cheats } from '../cheats/cheatState';
 import { EnemyAIState } from '../enemies/enemyAI';
 import { createPauseMenu3D } from '../ui/pauseMenu3d';
 import { showLoadingText3D, hideLoadingText3D } from '../ui/loadingScreen3d';
+import { showCrosshair, hideCrosshair, showClickHint, hideClickHint, setGameCursor, setDefaultCursor, disposeCursor } from '../ui/gameCursor';
 
 import type { EnemyType } from '../enemies/enemyTypes';
 
@@ -210,14 +211,41 @@ export async function createGameLoop(
     }
   });
 
-  // Pointer lock change — show pause menu when pointer lock is lost during gameplay
+  // ESC detection flag — browsers fire keydown(Escape) BEFORE exiting pointer lock
+  let escPressedRecently = false;
+
+  const onEscKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && document.pointerLockElement) {
+      escPressedRecently = true;
+      setTimeout(() => { escPressedRecently = false; }, 200);
+    }
+  };
+  document.addEventListener('keydown', onEscKeyDown, true);
+
+  // Pointer lock change — only pause on ESC, otherwise show click-to-resume hint
   const onPointerLockChange = () => {
-    if (document.pointerLockElement) return; // lock acquired, ignore
+    if (document.pointerLockElement) {
+      // Lock acquired — show crosshair, hide hint, set game cursor
+      showCrosshair();
+      hideClickHint();
+      return;
+    }
+    // Lock lost
+    hideCrosshair();
     if (player.isDead || transitioning || paused) return;
     if (isConsoleOpen()) return;
-    // Pointer lock was lost — pause the game and show menu
-    paused = true;
-    pauseMenu.show();
+
+    if (escPressedRecently) {
+      // User pressed ESC — pause and show menu
+      escPressedRecently = false;
+      paused = true;
+      pauseMenu.show();
+      setDefaultCursor();
+    } else {
+      // Lost focus for another reason — show hint, re-acquire on click
+      setGameCursor();
+      showClickHint();
+    }
   };
   document.addEventListener('pointerlockchange', onPointerLockChange);
 
@@ -230,6 +258,7 @@ export async function createGameLoop(
     onResume: () => {
       pauseMenu.hide();
       paused = false;
+      hideClickHint();
       player.requestPointerLock();
     },
     onRestart: () => {
@@ -338,6 +367,7 @@ export async function createGameLoop(
         triggerAttack();
       }
     } else if (!transitioning && !player.isDead && !paused) {
+      hideClickHint();
       player.requestPointerLock();
     }
   };
@@ -685,12 +715,15 @@ export async function createGameLoop(
   await loadFloor(currentFloorNumber);
   hideLoadingText3D(camera);
   player.requestPointerLock();
+  showCrosshair();
   hud.show();
 
   async function nextFloor() {
     if (transitioning) return;
     transitioning = true;
     player.exitPointerLock();
+    hideCrosshair();
+    hideClickHint();
 
     // Play stone creak (heavy door / stairway entrance) then the descent stinger
     sfxPlayer?.play(AudioEvent.STONE_CREAK);
@@ -714,6 +747,9 @@ export async function createGameLoop(
   async function handleBlueprintPickup() {
     paused = true;
     player.exitPointerLock();
+    hideCrosshair();
+    hideClickHint();
+    setDefaultCursor();
 
     const drawingResult = await showDrawingOverlay();
     if (!drawingResult) {
@@ -1135,7 +1171,9 @@ export async function createGameLoop(
   function dispose() {
     document.removeEventListener('mousedown', onMouseDown);
     document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keydown', onEscKeyDown, true);
     document.removeEventListener('pointerlockchange', onPointerLockChange);
+    disposeCursor();
     pauseMenu.dispose();
     player.exitPointerLock();
     player.dispose();
@@ -1177,8 +1215,8 @@ export async function createGameLoop(
     isGameOver: () => player.isDead,
     getScore: () => player.score,
     getFloor: () => currentFloorNumber,
-    pause: () => { paused = true; player.exitPointerLock(); },
-    resume: () => { paused = false; player.requestPointerLock(); },
+    pause: () => { paused = true; player.exitPointerLock(); hideCrosshair(); hideClickHint(); setDefaultCursor(); },
+    resume: () => { paused = false; hideClickHint(); player.requestPointerLock(); },
     isPaused: () => paused,
     getRunStats: () => ({
       score: player.score,
