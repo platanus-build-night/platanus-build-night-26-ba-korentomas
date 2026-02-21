@@ -442,20 +442,25 @@ function renderCards(items: GalleryItem[]): void {
   for (const item of items) {
     const card = document.createElement('div');
     Object.assign(card.style, {
-      background: 'rgba(244, 228, 193, 0.5)',
+      background: 'rgba(244, 228, 193, 0.6)',
       border: '2px solid rgba(42, 26, 10, 0.3)',
-      borderRadius: '8px',
+      borderRadius: '10px',
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
       cursor: 'pointer',
-      transition: 'border-color 0.2s',
+      transition: 'transform 0.15s, border-color 0.15s, box-shadow 0.15s',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
     });
     card.addEventListener('mouseenter', () => {
-      card.style.borderColor = 'rgba(42, 26, 10, 0.7)';
+      card.style.borderColor = '#daa520';
+      card.style.transform = 'translateY(-3px)';
+      card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
     });
     card.addEventListener('mouseleave', () => {
       card.style.borderColor = 'rgba(42, 26, 10, 0.3)';
+      card.style.transform = 'translateY(0)';
+      card.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
     });
     card.addEventListener('click', () => showDetail(item));
 
@@ -498,18 +503,18 @@ function renderCards(items: GalleryItem[]): void {
     // Info area
     const info = document.createElement('div');
     Object.assign(info.style, {
-      padding: '8px',
+      padding: '10px 10px 8px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
+      gap: '6px',
     });
 
     // Name
     const nameEl = document.createElement('div');
     Object.assign(nameEl.style, {
       fontFamily: '"Courier New", Courier, monospace',
-      fontWeight: '600',
-      fontSize: '13px',
+      fontWeight: '700',
+      fontSize: '15px',
       color: '#3a2a1a',
       whiteSpace: 'nowrap',
       overflow: 'hidden',
@@ -524,12 +529,12 @@ function renderCards(items: GalleryItem[]): void {
     const badgeColors = BADGE_COLORS[item.category] || BADGE_COLORS.weapon;
     Object.assign(badge.style, {
       display: 'inline-block',
-      padding: '2px 8px',
+      padding: '3px 10px',
       borderRadius: '10px',
       background: badgeColors.bg,
       color: badgeColors.text,
       fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '10px',
+      fontSize: '11px',
       fontWeight: '700',
       textTransform: 'uppercase',
       letterSpacing: '0.5px',
@@ -611,16 +616,16 @@ function buildOverlay(): HTMLDivElement {
   const panelWrap = document.createElement('div');
   Object.assign(panelWrap.style, {
     position: 'relative',
-    width: '90vw',
-    maxWidth: '960px',
-    height: '85vh',
-    maxHeight: '720px',
+    width: '94vw',
+    maxWidth: '1200px',
+    height: '90vh',
+    maxHeight: '860px',
   });
 
   // Parchment background canvas
   const parchment = document.createElement('canvas');
-  parchment.width = 960;
-  parchment.height = 720;
+  parchment.width = 1200;
+  parchment.height = 860;
   Object.assign(parchment.style, {
     position: 'absolute',
     inset: '0',
@@ -805,12 +810,11 @@ function buildOverlay(): HTMLDivElement {
   gridEl = document.createElement('div');
   Object.assign(gridEl.style, {
     display: 'none',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-    gap: '12px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+    gap: '16px',
     overflowY: 'auto',
     flex: '1',
-    padding: '4px',
-    // Custom scrollbar styling for webkit
+    padding: '4px 8px 4px 4px',
   });
   content.appendChild(gridEl);
 
