@@ -8,10 +8,12 @@ export interface DrawingResult {
   imageData: string;
   categoryId: string;
   textPrompt: string;
+  name: string;
   width: number;
   height: number;
   weaponType?: string;
   projectileImageData?: string;
+  projectileDominantColor?: number;
 }
 
 export type DrawingSubmitHandler = (result: DrawingResult) => void;

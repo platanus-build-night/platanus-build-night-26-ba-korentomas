@@ -5,6 +5,8 @@ export interface ProjectilePad {
   destroy(): void;
   show(): void;
   hide(): void;
+  setColor(color: string): void;
+  getDominantColor(): number;
 }
 
 export function createProjectilePad(parentElement: HTMLElement): ProjectilePad {
@@ -166,5 +168,47 @@ export function createProjectilePad(parentElement: HTMLElement): ProjectilePad {
     container.remove();
   }
 
-  return { container, toDataURL, clear, destroy, show, hide };
+  function setColor(color: string): void {
+    ctx.strokeStyle = color;
+  }
+
+  function getDominantColor(): number {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imgData.data;
+    // Bucket colors into a simple frequency map (quantize to 4-bit per channel)
+    const counts = new Map<number, number>();
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i];
+      const g = d[i + 1];
+      const b = d[i + 2];
+      const a = d[i + 3];
+      // Skip transparent or near-white or near-black pixels
+      if (a < 128) continue;
+      if (r > 230 && g > 230 && b > 230) continue;
+      if (r < 25 && g < 25 && b < 25) continue;
+      // Quantize to reduce noise
+      const qr = (r >> 4) << 4;
+      const qg = (g >> 4) << 4;
+      const qb = (b >> 4) << 4;
+      const key = (qr << 16) | (qg << 8) | qb;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    if (counts.size === 0) {
+      // Fallback: default blue
+      return 0x44aaff;
+    }
+
+    let bestKey = 0;
+    let bestCount = 0;
+    for (const [key, count] of counts) {
+      if (count > bestCount) {
+        bestCount = count;
+        bestKey = key;
+      }
+    }
+    return bestKey;
+  }
+
+  return { container, toDataURL, clear, destroy, show, hide, setColor, getDominantColor };
 }

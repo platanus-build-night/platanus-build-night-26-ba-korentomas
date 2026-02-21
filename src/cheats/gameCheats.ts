@@ -4,7 +4,9 @@ export interface GameCheatContext {
   getPlayer: () => { health: number; score: number; addScore: (n: number) => void };
   getEnemyManager: () => { getEnemies: () => { id: number; health: number }[]; applyDamage: (id: number, dmg: number) => void };
   getCurrentFloor: () => number;
-  loadFloor: (n: number) => void;
+  loadFloor: (n: number) => void | Promise<void>;
+  spawnBlueprint: () => void;
+  spawnEnemy: (id: number) => Promise<string>;
 }
 
 export function registerGameCheats(ctx: GameCheatContext): void {
@@ -73,4 +75,39 @@ export function registerGameCheats(ctx: GameCheatContext): void {
       return `Warped to floor ${val}`;
     },
   });
+
+  registerCheat({
+    name: 'blueprint',
+    description: 'Spawn a blueprint at your feet',
+    execute: () => {
+      ctx.spawnBlueprint();
+      return 'Blueprint spawned!';
+    },
+  });
+
+  registerCheat({
+    name: 'spawn',
+    description: 'Spawn an enemy from the database',
+    usage: 'spawn [id] — no args lists available enemies',
+    execute: async (args) => {
+      if (args.length === 0) {
+        // List available enemies from DB
+        try {
+          const res = await fetch('/api/enemies');
+          if (!res.ok) return 'Failed to fetch enemies';
+          const enemies = await res.json() as { id: number; name: string; health: number; damage: number }[];
+          if (enemies.length === 0) return 'No enemies in database. Forge one first!';
+          const lines = enemies.map(e => `  ${e.id}: ${e.name} (HP:${e.health} DMG:${e.damage})`);
+          return `Available enemies:\n${lines.join('\n')}\n\nUsage: spawn <id>`;
+        } catch {
+          return 'Failed to fetch enemy list';
+        }
+      }
+
+      const id = parseInt(args[0]);
+      if (isNaN(id)) return 'Usage: spawn <id>';
+      return ctx.spawnEnemy(id);
+    },
+  });
+
 }

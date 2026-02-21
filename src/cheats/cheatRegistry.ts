@@ -2,7 +2,7 @@ export interface CheatDefinition {
   name: string;
   description: string;
   usage?: string;
-  execute: (args: string[]) => string;
+  execute: (args: string[]) => string | Promise<string>;
 }
 
 const registry = new Map<string, CheatDefinition>();
@@ -11,7 +11,7 @@ export function registerCheat(cheat: CheatDefinition): void {
   registry.set(cheat.name.toLowerCase(), cheat);
 }
 
-export function executeCheat(input: string): string {
+export function executeCheat(input: string): string | Promise<string> {
   const parts = input.trim().split(/\s+/);
   const name = parts[0].toLowerCase();
   const args = parts.slice(1);

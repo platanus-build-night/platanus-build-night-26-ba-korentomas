@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const ENEMY_HEIGHT = 1.7;
+const ENEMY_HEIGHT = 2.2;
 
 export async function createSpriteEnemyModel(imageDataUrl: string): Promise<() => THREE.Group> {
   // Load texture from data URL

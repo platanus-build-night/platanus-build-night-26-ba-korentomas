@@ -14,6 +14,7 @@ let selectedCategoryId = '';
 let selectedWeaponType = 'sword';
 let isVisible = false;
 let categoryButtons: HTMLButtonElement[] = [];
+let nameInput: HTMLInputElement | null = null;
 let promptInput: HTMLTextAreaElement | null = null;
 let pendingResolve: ((result: DrawingResult | null) => void) | null = null;
 let forgeOverlayEl: HTMLDivElement | null = null;
@@ -137,6 +138,7 @@ function buildSplatPalette(parchmentWrap: HTMLDivElement): HTMLDivElement {
       const prevIdx = selectedSplatIndex;
       selectedSplatIndex = i;
       sketchPad?.setColor(color);
+      projectilePad?.setColor(color);
       // Redraw previous and current
       if (prevIdx !== i && splatCanvases[prevIdx]) {
         drawSplat(splatCanvases[prevIdx], SPLAT_COLORS[prevIdx], prevIdx * 3.7 + 1.2, false, false);
@@ -566,6 +568,35 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   weaponTypeContainer = buildWeaponTypeGrid(sidebar);
   updateWeaponTypeVisibility();
 
+  // Name input
+  const nameLabel = document.createElement('div');
+  Object.assign(nameLabel.style, {
+    color: '#2a1a0a',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '12px',
+    fontWeight: '600',
+  });
+  nameLabel.textContent = 'Name';
+  sidebar.appendChild(nameLabel);
+
+  nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Name your creation';
+  nameInput.maxLength = 50;
+  Object.assign(nameInput.style, {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '6px 10px',
+    background: 'rgba(210, 180, 140, 0.3)',
+    border: '2px solid #8b7355',
+    borderRadius: '6px',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '14px',
+    color: '#2a1a0a',
+    outline: 'none',
+  });
+  sidebar.appendChild(nameInput);
+
   // Prompt label
   const promptLabel = document.createElement('div');
   Object.assign(promptLabel.style, {
@@ -717,10 +748,12 @@ function handleGenerate(): void {
     imageData: sketchPad.toDataURL(),
     categoryId: selectedCategoryId,
     textPrompt: promptInput?.value ?? '',
+    name: nameInput?.value?.trim() || '',
     width: sketchPad.canvas.width,
     height: sketchPad.canvas.height,
     weaponType: selectedCategoryId === 'weapon' ? selectedWeaponType : undefined,
     projectileImageData: (projectilePad && projectilePadVisible) ? projectilePad.toDataURL() : undefined,
+    projectileDominantColor: (projectilePad && projectilePadVisible) ? projectilePad.getDominantColor() : undefined,
   };
 
   pendingResolve(result);
@@ -775,6 +808,7 @@ export function hideDrawingOverlay(): void {
   overlay = null;
   isVisible = false;
   categoryButtons = [];
+  nameInput = null;
   promptInput = null;
   genBtn = null;
   forgeOverlayEl = null;

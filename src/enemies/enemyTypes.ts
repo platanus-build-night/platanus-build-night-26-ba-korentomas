@@ -16,14 +16,16 @@ export interface EnemyType {
   ranged?: boolean;
   rangedRange?: number;
   projectileType?: ProjectileType;
+  /** Visual scale multiplier applied to the spawned model (default 1.0). */
+  scale?: number;
 }
 
 export const ENEMY_TYPES: Record<string, EnemyType> = {
   SKELETON: {
     name: 'Skeleton',
     health: 30,
-    speed: 2,
-    damage: 10,
+    speed: 2.5,
+    damage: 20,
     attackRange: 1.5,
     attackCooldown: 1.0,
     points: 100,
@@ -32,8 +34,8 @@ export const ENEMY_TYPES: Record<string, EnemyType> = {
   BOSS_SKELETON: {
     name: 'Boss Skeleton',
     health: 150,
-    speed: 1.5,
-    damage: 25,
+    speed: 2.0,
+    damage: 40,
     attackRange: 2.5,
     attackCooldown: 1.5,
     points: 500,

@@ -12,8 +12,8 @@ export interface SketchPad {
 
 export function createSketchPad(container: HTMLElement): SketchPad {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 1024;
+  canvas.height = 1024;
   Object.assign(canvas.style, {
     width: '100%',
     height: '100%',

@@ -24,7 +24,7 @@ export async function forgeCreation(drawingResult: DrawingResult): Promise<Forge
     body: JSON.stringify({
       sketch: drawingResult.imageData,
       category: drawingResult.categoryId,
-      name: drawingResult.textPrompt || 'Custom Creation',
+      name: drawingResult.name || drawingResult.textPrompt || 'Custom Creation',
       weaponType: drawingResult.weaponType || (drawingResult.categoryId === 'weapon' ? 'sword' : undefined),
       projectileSketch: drawingResult.projectileImageData || undefined,
       description: drawingResult.textPrompt || undefined,

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import sharp from 'sharp';
 import pool from '../db.js';
 import { optimizeGlb } from '../optimizeGlb.js';
 
@@ -28,16 +29,16 @@ function buildPromptConfig(category: ForgeCategory, description?: string, weapon
   if (category === 'enemy') {
     const desc = description || 'a fearsome dungeon creature';
     return {
-      prompt: `A 2D fantasy creature sprite, front-facing, full body, pixel art style, dark dungeon aesthetic, transparent background, single character, game enemy sprite, ${desc}, no text`,
-      negative_prompt: 'blurry, low quality, multiple characters, text, watermark, background scene, 3D render, realistic photo',
-      style_preset: 'pixel-art',
+      prompt: `2D game character sprite of exactly what was drawn: ${desc}. Faithfully match the sketch. Front-facing, full body, solid white background, clean outline, single character centered, game asset sprite, no shadow, no text`,
+      negative_prompt: 'blurry, low quality, multiple characters, text, watermark, background scene, realistic photo, 3D render, gradient background, complex background, floor, ground, shadow on ground',
+      style_preset: 'comic-book',
       control_strength: '0.7',
     };
   }
   if (category === 'decoration') {
     const desc = description || 'a stone dungeon decoration';
     return {
-      prompt: `A 2D painting for a fantasy dungeon wall, ${desc}, painterly style, framed artwork aesthetic, no text, no border`,
+      prompt: `A painting of exactly what was drawn: ${desc}. Faithfully match the sketch style and subject. Framed artwork aesthetic, no text, no border`,
       negative_prompt: 'blurry, low quality, multiple characters, text, watermark, background scene, 3D render, realistic photo',
       style_preset: 'fantasy-art',
       control_strength: '0.7',
@@ -47,7 +48,7 @@ function buildPromptConfig(category: ForgeCategory, description?: string, weapon
   const resolvedType = weaponType || 'sword';
   const weaponLabel = WEAPON_LABELS[resolvedType] || WEAPON_LABELS['sword'];
   const prompt = description
-    ? `A 3D rendered fantasy ${weaponLabel}, ${description}, on a plain white background, centered, single object, high detail, game asset, no text`
+    ? `A 3D rendered ${weaponLabel}, ${description}. Faithfully match the sketch. Plain white background, centered, single object, high detail, game asset, no text`
     : `A 3D rendered fantasy ${weaponLabel} on a plain white background, centered, single object, high detail, game asset, no text`;
   return {
     prompt,
@@ -114,11 +115,40 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
 
     // For enemies and decorations, return the PNG sprite directly (skip SF3D + optimize)
     if (category === 'enemy' || category === 'decoration') {
+      let finalImage = renderedImage;
+
+      // Remove background for enemy sprites to get a clean transparent PNG
+      if (category === 'enemy') {
+        console.log('Removing background from enemy sprite...');
+        const bgForm = new FormData();
+        bgForm.append('image', new Blob([renderedImage], { type: 'image/png' }), 'sprite.png');
+        bgForm.append('output_format', 'png');
+
+        const bgResponse = await fetch(
+          'https://api.stability.ai/v2beta/stable-image/edit/remove-background',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              Accept: 'image/*',
+            },
+            body: bgForm,
+          }
+        );
+
+        if (bgResponse.ok) {
+          finalImage = Buffer.from(await bgResponse.arrayBuffer());
+          console.log('Background removed. Transparent sprite size:', finalImage.length);
+        } else {
+          console.warn('Background removal failed, using original image:', bgResponse.status);
+        }
+      }
+
       const table = category === 'enemy' ? 'enemies' : 'decorations';
       const defaultName = category === 'enemy' ? 'Unnamed Enemy' : 'Unnamed Decoration';
       const result = await pool.query(
         `INSERT INTO ${table} (name, sketch_png, sprite_png) VALUES ($1, $2, $3) RETURNING id, name`,
-        [name || defaultName, base64Data, renderedImage]
+        [name || defaultName, base64Data, finalImage]
       );
       const itemId = result.rows[0].id;
       const itemName = result.rows[0].name;
@@ -129,14 +159,26 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
         'X-Item-Name': itemName,
         'X-Item-Category': category,
       });
-      res.send(renderedImage);
+      res.send(finalImage);
       return;
+    }
+
+    // Ensure image is at least 640x640 for SF3D API
+    const metadata = await sharp(renderedImage).metadata();
+    let sf3dImage = renderedImage;
+    if ((metadata.width || 0) < 640 || (metadata.height || 0) < 640) {
+      const targetSize = Math.max(640, metadata.width || 640, metadata.height || 640);
+      console.log(`Image too small (${metadata.width}x${metadata.height}), resizing to ${targetSize}x${targetSize}`);
+      sf3dImage = await sharp(renderedImage)
+        .resize(targetSize, targetSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .png()
+        .toBuffer();
     }
 
     // Step 2: Realistic image → 3D model via SF3D (use 512 textures for smaller output)
     console.log('Step 2: Converting image to 3D model...');
     const sf3dForm = new FormData();
-    sf3dForm.append('image', new Blob([renderedImage], { type: 'image/png' }), 'weapon.png');
+    sf3dForm.append('image', new Blob([sf3dImage], { type: 'image/png' }), 'weapon.png');
     sf3dForm.append('texture_resolution', '512');
 
     const sfResponse = await fetch(

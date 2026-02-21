@@ -13,24 +13,55 @@ import { SwordModel } from '../weapons/swordModel';
 import { DualSwordModel } from '../weapons/dualSwordModel';
 import { type MusicPlayer, type SfxPlayer, AudioEvent } from '../audio';
 import { createDungeonLights, updateDungeonLights, disposeDungeonLights, type DungeonLight } from '../dungeon/dungeonLights';
-import { spawnDecorations, disposeDecorations } from '../decorations/decorationPlacer';
+import { spawnDecorations, disposeDecorations, getPlacedDecorations } from '../decorations/decorationPlacer';
 import { disposeDecorationShared } from '../decorations/decorationModels';
 import { spawnPaintings, disposePaintings, type PlacedPainting } from '../decorations/paintingPlacer';
 import { disposePaintingShared } from '../decorations/paintingModel';
 import { createCustomEnemyType } from '../enemies/customEnemyModel';
 import { spawnItems, spawnBlueprintAtPosition } from '../items/itemPlacer';
 import { ItemPickupSystem } from '../items/itemPickup';
-import { ItemType, disposeItemShared } from '../items/itemTypes';
+import { ItemType, ITEM_DEFS, disposeItemShared } from '../items/itemTypes';
 import { RoomTracker } from '../dungeon/roomTracker';
 import { setDoorLocked } from '../dungeon/doorMesh';
 import { ProjectileManager } from '../projectiles/projectileManager';
-import { PROJECTILE_TYPES } from '../projectiles/projectileTypes';
+import { PROJECTILE_TYPES, type ProjectileType } from '../projectiles/projectileTypes';
 import { disposeProjectileShared } from '../projectiles/projectileModels';
 import { showDrawingOverlay, hideDrawingOverlay, showForgeProgress, hideForgeProgress } from '../drawing/drawingOverlay';
 import { forgeCreation, arrayBufferToDataUrl } from '../forge/forgeCreation';
 import { communityCache } from '../community/communityCache';
 import { setOnCloseCallback, isConsoleOpen } from '../cheats/cheatConsole';
 import { registerGameCheats } from '../cheats/gameCheats';
+import { BreakableSystem } from '../decorations/breakableSystem';
+import { createPauseMenu } from '../ui/pauseMenu';
+
+import type { EnemyType } from '../enemies/enemyTypes';
+
+/** Create a boss-scaled version of any enemy type. */
+function makeBossVersion(baseType: EnemyType): EnemyType {
+  return {
+    ...baseType,
+    name: `Boss ${baseType.name}`,
+    health: Math.round(baseType.health * 4),
+    damage: Math.round(baseType.damage * 2),
+    speed: baseType.speed * 0.85,
+    points: Math.round(baseType.points * 5),
+    attackRange: (baseType.attackRange || 1.5) * 1.3,
+    attackCooldown: baseType.attackCooldown,
+    scale: (baseType.scale || 1.0) * 1.5,
+  };
+}
+
+export interface CreationUsed {
+  name: string;
+  category: string;
+}
+
+export interface RunStats {
+  score: number;
+  floor: number;
+  enemiesKilled: number;
+  creationsUsed: CreationUsed[];
+}
 
 export interface GameLoopContext {
   scene: THREE.Scene;
@@ -43,6 +74,13 @@ export interface GameLoopContext {
   pause: () => void;
   resume: () => void;
   isPaused: () => boolean;
+  getRunStats: () => RunStats;
+  /** Called when the player selects "Restart" from the pause menu. */
+  onRestart: (() => void) | null;
+  /** Called when the player selects "Quit to Menu" from the pause menu. */
+  onQuit: (() => void) | null;
+  /** Called when the player dies. */
+  onGameOver: (() => void) | null;
 }
 
 export async function createGameLoop(
@@ -63,6 +101,7 @@ export async function createGameLoop(
   let paintings: PlacedPainting[] = [];
   let dungeonLights: DungeonLight[] = [];
   const itemPickup = new ItemPickupSystem();
+  const breakableSystem = new BreakableSystem(scene);
 
   // New Phase 1 state
   let paused = false;
@@ -70,10 +109,48 @@ export async function createGameLoop(
   let equippedWeapon: 'melee' | 'ranged' = 'melee';
   let roomTracker: RoomTracker | null = null;
   let projectileManager: ProjectileManager | null = null;
+  let customProjectileType: ProjectileType | null = null;
   interface QueuedSprite { dataUrl: string; name: string; id: number; }
   const customEnemyQueue: QueuedSprite[] = [];
   const customPaintingQueue: QueuedSprite[] = [];
   let bossEnemy: { id: number; health: number; maxHealth: number; name: string } | null = null;
+
+  // Run stats tracking
+  let enemiesKilledCount = 0;
+  const creationsUsed: CreationUsed[] = [];
+  let onGameOverCb: (() => void) | null = null;
+
+  // Loading screen overlay
+  let loadingTextEl: HTMLDivElement | null = null;
+
+  function showLoadingText(message: string): void {
+    if (!loadingTextEl) {
+      loadingTextEl = document.createElement('div');
+      Object.assign(loadingTextEl.style, {
+        position: 'fixed',
+        inset: '0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '25',
+        pointerEvents: 'none',
+        fontFamily: '"Courier New", Courier, monospace',
+        fontSize: '24px',
+        color: '#daa520',
+        textShadow: '0 0 10px rgba(218, 165, 32, 0.5)',
+        letterSpacing: '2px',
+      });
+      document.body.appendChild(loadingTextEl);
+    }
+    loadingTextEl.textContent = message;
+    loadingTextEl.style.display = 'flex';
+  }
+
+  function hideLoadingText(): void {
+    if (loadingTextEl) {
+      loadingTextEl.style.display = 'none';
+    }
+  }
 
   // Footstep tracking
   let footstepDistance = 0;
@@ -90,15 +167,20 @@ export async function createGameLoop(
   const menuFogDensity = fog.density;
   fog.density = 0.015;
 
-  // Player torch — PointLight attached to camera
-  const playerTorch = new THREE.PointLight(0xffeedd, 5, 20, 1.2);
+  // Player flashlight — wide SpotLight cone (Slenderman style)
+  const playerTorch = new THREE.SpotLight(0xff9944, 8, 30, Math.PI / 3, 0.4, 1.2);
   playerTorch.position.set(0, 0, 0);
+  const torchTarget = new THREE.Object3D();
+  torchTarget.position.set(0, -0.5, -5);
+  camera.add(torchTarget);
+  playerTorch.target = torchTarget;
   camera.add(playerTorch);
 
   const player = new PlayerController(camera, [[]]);
   const combat = new SwordCombat();
   const enemies = new EnemyManager(scene);
   const hud = new HUD();
+  const pauseMenu = createPauseMenu();
   const swordModel = new SwordModel(camera);
   let dualSwordModel: DualSwordModel | null = null;
   let activeWeaponModel: 'sword' | 'dual' = 'sword';
@@ -136,12 +218,79 @@ export async function createGameLoop(
     }
   });
 
+  // Pointer lock change — show pause menu when pointer lock is lost during gameplay
+  const onPointerLockChange = () => {
+    if (document.pointerLockElement) return; // lock acquired, ignore
+    if (player.isDead || transitioning || paused) return;
+    if (isConsoleOpen()) return;
+    // Pointer lock was lost — pause the game and show menu
+    paused = true;
+    pauseMenu.show();
+  };
+  document.addEventListener('pointerlockchange', onPointerLockChange);
+
+  // onRestart / onQuit — set by main.ts
+  let onRestartCb: (() => void) | null = null;
+  let onQuitCb: (() => void) | null = null;
+
+  // Pause menu callbacks
+  pauseMenu.setCallbacks({
+    onResume: () => {
+      pauseMenu.hide();
+      paused = false;
+      player.requestPointerLock();
+    },
+    onRestart: () => {
+      pauseMenu.hide();
+      paused = false;
+      onRestartCb?.();
+    },
+    onQuit: () => {
+      pauseMenu.hide();
+      paused = false;
+      onQuitCb?.();
+    },
+  });
+
+  // Spawn a custom sprite enemy at the player's position
+  async function spawnEnemyFromDB(enemyId: number): Promise<string> {
+    try {
+      const metaRes = await fetch('/api/enemies');
+      if (!metaRes.ok) return 'Failed to fetch enemies';
+      const allEnemies = await metaRes.json() as { id: number; name: string; health: number; speed: number; damage: number; points: number }[];
+      const meta = allEnemies.find(e => e.id === enemyId);
+      if (!meta) return `Enemy id ${enemyId} not found`;
+
+      const spriteRes = await fetch(`/api/enemies/${enemyId}/model`);
+      if (!spriteRes.ok) return `Failed to fetch enemy sprite`;
+      const spriteBuffer = await spriteRes.arrayBuffer();
+      const dataUrl = arrayBufferToDataUrl(spriteBuffer, 'image/png');
+
+      const stats = { health: meta.health, speed: meta.speed, damage: meta.damage, points: meta.points };
+      const customType = await createCustomEnemyType(dataUrl, stats, meta.name);
+
+      const pos = player.getPosition();
+      const spawnX = pos.x + player.getDirection().x * 3;
+      const spawnZ = pos.z + player.getDirection().z * 3;
+      enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, -1);
+      return `Spawned "${meta.name}" ahead of you!`;
+    } catch (err) {
+      return `Spawn failed: ${err}`;
+    }
+  }
+
   // Register game cheats
   registerGameCheats({
     getPlayer: () => player,
     getEnemyManager: () => enemies,
     getCurrentFloor: () => currentFloorNumber,
-    loadFloor: (n) => { currentFloorNumber = n; loadFloor(n); },
+    loadFloor: async (n) => { currentFloorNumber = n; await loadFloor(n); },
+    spawnBlueprint: () => {
+      const pos = player.getPosition();
+      const item = spawnBlueprintAtPosition(pos.x, pos.z, floorResult!.group);
+      itemPickup.addItem(item);
+    },
+    spawnEnemy: (id) => spawnEnemyFromDB(id),
   });
 
   function triggerAttack() {
@@ -159,7 +308,7 @@ export async function createGameLoop(
     if (isConsoleOpen()) return;
     if (document.pointerLockElement) {
       if (equippedWeapon === 'ranged') {
-        projectileManager?.spawn(player.getPosition(), player.getDirection(), PROJECTILE_TYPES.MAGIC_BOLT, 'player');
+        projectileManager?.spawn(player.getPosition(), player.getDirection(), customProjectileType ?? PROJECTILE_TYPES.MAGIC_BOLT, 'player');
         sfxPlayer?.play(AudioEvent.PROJECTILE_FIRE);
       } else {
         triggerAttack();
@@ -182,7 +331,7 @@ export async function createGameLoop(
   };
   document.addEventListener('keydown', onKeyDown);
 
-  function loadFloor(floorNum: number) {
+  async function loadFloor(floorNum: number) {
     // Clean previous floor
     if (floorResult) {
       scene.remove(floorResult.group);
@@ -192,6 +341,7 @@ export async function createGameLoop(
     disposePaintings(paintings);
     disposeDungeonLights(dungeonLights);
     itemPickup.dispose();
+    breakableSystem.clear();
     enemies.dispose();
     projectileManager?.deactivateAll();
     bossDefeated = false;
@@ -208,6 +358,20 @@ export async function createGameLoop(
 
     // Spawn decorations
     decorations = spawnDecorations(dungeonFloor, floorResult.group);
+
+    // Register breakable decorations
+    const placedDecos = getPlacedDecorations();
+    for (const pd of placedDecos) {
+      if (pd.def.breakable) {
+        breakableSystem.register({
+          mesh: pd.model,
+          worldX: pd.worldX,
+          worldZ: pd.worldZ,
+          health: pd.def.health || 1,
+          lootType: pd.def.lootType,
+        });
+      }
+    }
 
     // Spawn wall paintings from queued custom paintings + community sprites
     const paintingUrls: string[] = [];
@@ -256,10 +420,29 @@ export async function createGameLoop(
       spawnsByRoom.set(sp.roomIndex, list);
     }
 
-    // Filter out special enemy types from random pool
-    const regularEnemyTypes = Object.values(ENEMY_TYPES).filter(
+    // Build combined enemy spawn pool: built-in + DB enemies (all equally likely)
+    const allEnemyTypes = Object.values(ENEMY_TYPES).filter(
       t => t.name !== 'Boss Skeleton' && t.name !== 'Skeleton Archer'
     );
+
+    // Fetch DB enemies and add to spawn pool
+    try {
+      const res = await fetch('/api/enemies');
+      if (res.ok) {
+        const dbEnemies = await res.json() as { id: number; name: string; health: number; speed: number; damage: number; points: number }[];
+        for (const meta of dbEnemies) {
+          const spriteRes = await fetch(`/api/enemies/${meta.id}/model`);
+          if (!spriteRes.ok) continue;
+          const spriteBuffer = await spriteRes.arrayBuffer();
+          const dataUrl = arrayBufferToDataUrl(spriteBuffer, 'image/png');
+          const stats = { health: meta.health, speed: meta.speed, damage: meta.damage, points: meta.points };
+          const customType = await createCustomEnemyType(dataUrl, stats, meta.name);
+          allEnemyTypes.push(customType);
+        }
+      }
+    } catch {
+      // Ignore — fall back to built-in enemies only
+    }
 
     for (const room of dungeonFloor.rooms) {
       const roomSpawns = spawnsByRoom.get(room.index) || [];
@@ -268,14 +451,16 @@ export async function createGameLoop(
       let count: number;
 
       if (room.type === RoomType.BOSS) {
-        // Boss + minions
+        // Pick a random enemy type and scale it up to boss tier
+        const baseType = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
+        const bossType = makeBossVersion(baseType);
         const bossSpawn = roomSpawns.find(s => s.isBoss) || roomSpawns[0];
-        enemies.spawnEnemiesInRoom(bossSpawn, 1, ENEMY_TYPES.BOSS_SKELETON, room.index);
+        enemies.spawnEnemiesInRoom(bossSpawn, 1, bossType, room.index);
         // 2-3 regular enemies
         count = 2 + Math.floor(Math.random() * 2);
         const minionSpawns = roomSpawns.filter(s => !s.isBoss).slice(0, count);
         for (const sp of minionSpawns) {
-          const type = regularEnemyTypes[Math.floor(Math.random() * regularEnemyTypes.length)];
+          const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
           enemies.spawnEnemiesInRoom(sp, 1, type, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, 1 + minionSpawns.length);
@@ -283,7 +468,7 @@ export async function createGameLoop(
         count = 4 + Math.floor(Math.random() * 3); // 4-6 enemies
         const actualCount = Math.min(count, roomSpawns.length);
         for (let i = 0; i < actualCount; i++) {
-          const type = regularEnemyTypes[Math.floor(Math.random() * regularEnemyTypes.length)];
+          const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
           enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, actualCount);
@@ -292,7 +477,7 @@ export async function createGameLoop(
         count = minE + Math.floor(Math.random() * (maxE - minE + 1));
         const actualCount = Math.min(count, roomSpawns.length);
         for (let i = 0; i < actualCount; i++) {
-          const type = regularEnemyTypes[Math.floor(Math.random() * regularEnemyTypes.length)];
+          const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
           enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, actualCount);
@@ -300,7 +485,7 @@ export async function createGameLoop(
       // SPAWN rooms get no enemies
     }
 
-    // Spawn custom sprite enemies from queue
+    // Spawn custom sprite enemies from queue (newly forged, not yet in DB)
     const spriteEnemyPromises: Promise<void>[] = [];
     while (customEnemyQueue.length > 0) {
       const queued = customEnemyQueue.shift()!;
@@ -318,29 +503,7 @@ export async function createGameLoop(
       }
     }
 
-    // Community sprite enemies on floors 4+
-    if (floorNum >= 4) {
-      spriteEnemyPromises.push(
-        communityCache.getRandomEnemySprite().then(async sprite => {
-          if (!sprite) return;
-          const normalRooms = dungeonFloor.rooms.filter(r => r.type === RoomType.NORMAL);
-          if (normalRooms.length === 0) return;
-          const room = normalRooms[Math.floor(Math.random() * normalRooms.length)];
-          const cx = room.x + room.width / 2;
-          const cz = room.y + room.height / 2;
-          const stats = {
-            health: sprite.stats.health,
-            speed: sprite.stats.speed,
-            damage: sprite.stats.damage,
-            points: sprite.stats.points,
-          };
-          const customType = await createCustomEnemyType(sprite.dataUrl, stats, sprite.name);
-          enemies.spawnEnemiesInRoom({ x: cx, z: cz }, 1, customType, room.index);
-        }).catch(() => {})
-      );
-    }
-
-    // Fire and forget — sprite enemies load async
+    // Fire and forget — queued sprite enemies load async
     Promise.all(spriteEnemyPromises).catch(() => {});
 
     // Room entered callback
@@ -360,9 +523,9 @@ export async function createGameLoop(
         if (room.type === RoomType.BOSS) {
           sfxPlayer?.play(AudioEvent.BOSS_ROAR);
           musicPlayer?.play(AudioEvent.MUSIC_BOSS);
-          // Track boss for health bar
+          // Track boss for health bar — find the boss by "Boss " name prefix
           const allEnemies = enemies.getEnemies();
-          const boss = allEnemies.find(e => e.roomIndex === roomIndex && e.type.name === 'Boss Skeleton');
+          const boss = allEnemies.find(e => e.roomIndex === roomIndex && e.type.name.startsWith('Boss '));
           if (boss) {
             bossEnemy = { id: boss.id, health: boss.health, maxHealth: boss.type.health, name: boss.type.name };
           }
@@ -400,7 +563,7 @@ export async function createGameLoop(
           (floorResult.exitMarker.material as THREE.MeshBasicMaterial).color.setHex(0x00ff66);
           (floorResult.exitMarker.material as THREE.MeshBasicMaterial).opacity = 0.6;
         }
-        sfxPlayer?.play(AudioEvent.FLOOR_TRANSITION);
+        sfxPlayer?.play(AudioEvent.STINGER_FLOOR_CLEAR);
         if (musicPlayer) {
           musicPlayer.play(musicPlayer.getTrackForFloor(currentFloorNumber));
         }
@@ -410,6 +573,12 @@ export async function createGameLoop(
     // Set enemy killed callback
     enemies.setOnEnemyKilled((roomIndex) => {
       roomTracker?.onEnemyKilled(roomIndex);
+      enemiesKilledCount++;
+    });
+
+    // Spawn fragment explosion when enemies die
+    enemies.setOnEnemyDied((x, z, color) => {
+      breakableSystem.spawnFragmentsAt(x, z, color, 8, 1.5);
     });
 
     // Update music for floor
@@ -419,7 +588,9 @@ export async function createGameLoop(
   }
 
   // Load first floor
-  loadFloor(currentFloorNumber);
+  showLoadingText('Entering the Dungeon...');
+  await loadFloor(currentFloorNumber);
+  hideLoadingText();
   player.requestPointerLock();
   hud.show();
 
@@ -428,11 +599,19 @@ export async function createGameLoop(
     transitioning = true;
     player.exitPointerLock();
 
-    sfxPlayer?.play(AudioEvent.FLOOR_TRANSITION);
+    // Play stone creak (heavy door / stairway entrance) then the descent stinger
+    sfxPlayer?.play(AudioEvent.STONE_CREAK);
+    sfxPlayer?.play(AudioEvent.STINGER_FLOOR_DESCENT);
 
     await fadeToBlack(fadeOverlay, 800);
+    showLoadingText(`Descending to Floor ${currentFloorNumber + 1}...`);
     currentFloorNumber++;
-    loadFloor(currentFloorNumber);
+    await loadFloor(currentFloorNumber);
+    hideLoadingText();
+
+    // Footstep on arrival at the new floor
+    sfxPlayer?.play(AudioEvent.FOOTSTEP);
+
     await fadeFromBlack(fadeOverlay, 800);
 
     player.requestPointerLock();
@@ -451,12 +630,28 @@ export async function createGameLoop(
     }
 
     showForgeProgress();
+
+    // Start forge ambiance — play random forge SFX at intervals
+    const forgeSfxEvents = [AudioEvent.CHAINS_RATTLE, AudioEvent.STONE_CREAK, AudioEvent.DISTANT_RUMBLE, AudioEvent.SWORD_HIT];
+    const forgeInterval = setInterval(() => {
+      const event = forgeSfxEvents[Math.floor(Math.random() * forgeSfxEvents.length)];
+      sfxPlayer?.play(event);
+    }, 2500);
+    musicPlayer?.play(AudioEvent.MUSIC_COMBAT);
+
     try {
       const forgedItem = await forgeCreation(drawingResult);
+      clearInterval(forgeInterval);
       hideForgeProgress();
       hideDrawingOverlay();
 
       sfxPlayer?.play(AudioEvent.FORGE_COMPLETE);
+      if (musicPlayer) {
+        musicPlayer.play(musicPlayer.getTrackForFloor(currentFloorNumber));
+      }
+
+      // Track creation for run summary
+      creationsUsed.push({ name: forgedItem.name, category: forgedItem.category });
 
       if (forgedItem.category === 'weapon') {
         if (forgedItem.weaponType === 'dual-daggers') {
@@ -482,23 +677,56 @@ export async function createGameLoop(
           swordModel.currentWeaponId = forgedItem.id;
         }
 
-        // Staff or bow → ranged mode
+        // Staff or bow → ranged mode with custom projectile
         if (forgedItem.weaponType === 'staff' || forgedItem.weaponType === 'bow') {
           equippedWeapon = 'ranged';
+          // Build custom ProjectileType from the drawing's projectile pad
+          const projColor = drawingResult.projectileDominantColor ?? PROJECTILE_TYPES.MAGIC_BOLT.color;
+          const projSprite = drawingResult.projectileImageData;
+          customProjectileType = {
+            name: forgedItem.name + ' Bolt',
+            speed: 15,
+            damage: 20,
+            radius: 0.15,
+            lifetime: 2,
+            piercing: false,
+            color: projColor,
+            scale: 1,
+            spriteDataUrl: projSprite,
+          };
         } else {
           equippedWeapon = 'melee';
         }
       } else if (forgedItem.category === 'enemy') {
+        // Spawn immediately on current floor + queue for future floors
         const dataUrl = arrayBufferToDataUrl(forgedItem.data, 'image/png');
         customEnemyQueue.push({ dataUrl, name: forgedItem.name, id: forgedItem.id });
+        const pos = player.getPosition();
+        const dir = player.getDirection();
+        const spawnX = pos.x + dir.x * 4;
+        const spawnZ = pos.z + dir.z * 4;
+        const stats = { health: 30, speed: 2, damage: 10, points: 100 };
+        createCustomEnemyType(dataUrl, stats, forgedItem.name).then(customType => {
+          enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, -1);
+        }).catch(() => {});
       } else if (forgedItem.category === 'decoration') {
         const dataUrl = arrayBufferToDataUrl(forgedItem.data, 'image/png');
         customPaintingQueue.push({ dataUrl, name: forgedItem.name, id: forgedItem.id });
+        // Also place on current floor immediately
+        if (dungeonFloor && floorResult) {
+          spawnPaintings(dungeonFloor, [dataUrl], floorResult.group).then(placed => {
+            paintings.push(...placed);
+          }).catch(() => {});
+        }
       }
     } catch (err) {
+      clearInterval(forgeInterval);
       console.error('Forge failed:', err);
       hideForgeProgress();
       hideDrawingOverlay();
+      if (musicPlayer) {
+        musicPlayer.play(musicPlayer.getTrackForFloor(currentFloorNumber));
+      }
     }
 
     paused = false;
@@ -529,11 +757,15 @@ export async function createGameLoop(
     // Room tracker update
     roomTracker?.updatePlayerPosition(pos.x, pos.z);
 
-    // Player torch flicker
+    // Player flashlight flicker — erratic torch feel
     const flicker =
-      Math.sin(time * 8) * 0.3 +
-      Math.sin(time * 13 + 2.3) * 0.2;
-    playerTorch.intensity = 5 + flicker;
+      Math.sin(time * 7) * 0.6 +
+      Math.sin(time * 13 + 2.3) * 0.4 +
+      Math.sin(time * 23 + 5.1) * 0.3;
+    playerTorch.intensity = 8 + flicker;
+    // Subtle orange color shift with flicker
+    const colorShift = Math.sin(time * 11) * 0.03;
+    playerTorch.color.setRGB(1.0, 0.6 + colorShift, 0.25 - colorShift * 0.5);
 
     // Room torches — distance-cull to nearest 6
     updateDungeonLights(dungeonLights, pos, time);
@@ -570,14 +802,38 @@ export async function createGameLoop(
     if (combat.isAttacking() && combat.getAttackProgress() < 0.1 && !attackHitChecked) {
       attackHitChecked = true;
       const targets = enemies.getTargets();
-      const hitIds = combat.checkHits(pos, player.getDirection(), targets);
+      const dir = player.getDirection();
+      const hitIds = combat.checkHits(pos, dir, targets);
       if (hitIds.length > 0) {
         sfxPlayer?.play(AudioEvent.SWORD_HIT);
       }
       for (const id of hitIds) {
         enemies.applyDamage(id, combat.damage);
       }
+
+      // Check breakable decorations
+      const breakResult = breakableSystem.checkHit(pos.x, pos.z, dir.x, dir.z, 2.5);
+      if (breakResult) {
+        sfxPlayer?.play(AudioEvent.SWORD_HIT);
+        // Spawn loot if the decoration had a loot type
+        if (breakResult.lootType && floorResult) {
+          const lootItemType = breakResult.lootType === 'health' ? ItemType.HEALTH_POTION : ItemType.SCORE_GEM;
+          const lootDef = ITEM_DEFS[lootItemType];
+          const lootModel = lootDef.modelGenerator();
+          lootModel.position.set(breakResult.worldX, 0.5, breakResult.worldZ);
+          floorResult.group.add(lootModel);
+          itemPickup.addItem({
+            def: lootDef,
+            model: lootModel,
+            position: new THREE.Vector3(breakResult.worldX, 0, breakResult.worldZ),
+            collected: false,
+          });
+        }
+      }
     }
+
+    // Update breakable fragment physics
+    breakableSystem.update(delta);
 
     // Collect points from killed enemies
     const points = enemies.getKilledPoints();
@@ -666,6 +922,8 @@ export async function createGameLoop(
   function dispose() {
     document.removeEventListener('mousedown', onMouseDown);
     document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('pointerlockchange', onPointerLockChange);
+    pauseMenu.dispose();
     player.exitPointerLock();
     player.dispose();
     enemies.dispose();
@@ -673,11 +931,13 @@ export async function createGameLoop(
     swordModel.dispose();
     dualSwordModel?.dispose();
     camera.remove(playerTorch);
+    camera.remove(torchTarget);
     playerTorch.dispose();
     disposeDecorations(decorations);
     disposePaintings(paintings);
     disposeDungeonLights(dungeonLights);
     itemPickup.dispose();
+    breakableSystem.dispose();
     disposeDecorationShared();
     disposePaintingShared();
     disposeItemShared();
@@ -686,6 +946,10 @@ export async function createGameLoop(
     if (floorResult) {
       scene.remove(floorResult.group);
       disposeFloorMesh(floorResult);
+    }
+    if (loadingTextEl) {
+      loadingTextEl.remove();
+      loadingTextEl = null;
     }
     if (musicPlayer) {
       musicPlayer.stop();
@@ -706,5 +970,17 @@ export async function createGameLoop(
     pause: () => { paused = true; player.exitPointerLock(); },
     resume: () => { paused = false; player.requestPointerLock(); },
     isPaused: () => paused,
+    getRunStats: () => ({
+      score: player.score,
+      floor: currentFloorNumber,
+      enemiesKilled: enemiesKilledCount,
+      creationsUsed: [...creationsUsed],
+    }),
+    get onRestart() { return onRestartCb; },
+    set onRestart(fn: (() => void) | null) { onRestartCb = fn; },
+    get onQuit() { return onQuitCb; },
+    set onQuit(fn: (() => void) | null) { onQuitCb = fn; },
+    get onGameOver() { return onGameOverCb; },
+    set onGameOver(fn: (() => void) | null) { onGameOverCb = fn; },
   };
 }

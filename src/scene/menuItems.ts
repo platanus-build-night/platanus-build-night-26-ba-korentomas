@@ -62,7 +62,7 @@ function buildGeometry(font: Font, text: string, params: MenuParams): THREE.Buff
   return geo;
 }
 
-const MENU_LABELS = ['Start', 'Settings', 'Credits'];
+const MENU_LABELS = ['Start', 'Gallery', 'Settings', 'Credits'];
 
 export async function createMenuItems(camera: THREE.Camera): Promise<MenuHandle> {
   const params: MenuParams = {

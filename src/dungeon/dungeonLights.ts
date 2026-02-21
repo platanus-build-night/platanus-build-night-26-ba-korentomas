@@ -9,8 +9,8 @@ export interface DungeonLight {
 }
 
 const MAX_ACTIVE_LIGHTS = 10;
-const BASE_INTENSITY = 3.0;
-const LIGHT_RANGE = 15;
+const BASE_INTENSITY = 4.5;
+const LIGHT_RANGE = 18;
 const FLICKER_AMOUNT = 0.4;
 
 export function createDungeonLights(rooms: Room[], floorGroup: THREE.Group): DungeonLight[] {

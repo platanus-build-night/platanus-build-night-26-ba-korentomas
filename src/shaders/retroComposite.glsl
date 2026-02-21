@@ -5,6 +5,7 @@ uniform vec2 resolution;
 uniform float saturation;
 uniform vec3 warmTint;
 uniform float crushBlacks;
+uniform float brightness;
 uniform sampler2D tDiffuse;
 varying vec2 vUv;
 
@@ -39,6 +40,9 @@ void main() {
 
   // Crush blacks
   color.rgb = smoothstep(vec3(crushBlacks), vec3(1.0), color.rgb);
+
+  // Brightness boost
+  color.rgb *= brightness;
 
   gl_FragColor = color;
 }
