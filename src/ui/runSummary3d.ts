@@ -214,7 +214,7 @@ export function showRunSummary3D(
     }> = [];
 
     // ---- Backdrop (dark red tint) ----
-    const backdrop = createOverlayBackdrop(0.92, 0x050000);
+    const backdrop = createOverlayBackdrop(0.35, 0x050000);
     camera.add(backdrop);
 
     // UI light for camera-attached MeshStandardMaterial
@@ -278,7 +278,7 @@ export function showRunSummary3D(
         depth: 0.2,
         color: 0xb41e1e,
         emissive: 0x8b1010,
-        emissiveIntensity: 2.0,
+        emissiveIntensity: 5.0,
         letterSpacing: 0.15,
       });
       title.mesh.position.set(0, 3.8, 0);
@@ -291,7 +291,7 @@ export function showRunSummary3D(
         size: 0.3,
         color: 0x6b5b45,
         emissive: 0x3a3020,
-        emissiveIntensity: 1.0,
+        emissiveIntensity: 4.0,
       });
       nameText.mesh.position.set(0, 3.0, 0);
       container.add(nameText.mesh);
@@ -342,7 +342,7 @@ export function showRunSummary3D(
         size: 0.2,
         color: 0x5a4a3a,
         emissive: 0x3a3020,
-        emissiveIntensity: 0.8,
+        emissiveIntensity: 4.0,
       });
       scoreLabel.mesh.position.set(-2.5, 1.5, 0);
       container.add(scoreLabel.mesh);
@@ -352,7 +352,7 @@ export function showRunSummary3D(
         size: 0.2,
         color: 0x5a4a3a,
         emissive: 0x3a3020,
-        emissiveIntensity: 0.8,
+        emissiveIntensity: 4.0,
       });
       floorLabel.mesh.position.set(0, 1.5, 0);
       container.add(floorLabel.mesh);
@@ -362,7 +362,7 @@ export function showRunSummary3D(
         size: 0.2,
         color: 0x5a4a3a,
         emissive: 0x3a3020,
-        emissiveIntensity: 0.8,
+        emissiveIntensity: 4.0,
       });
       slainLabel.mesh.position.set(2.5, 1.5, 0);
       container.add(slainLabel.mesh);
@@ -389,7 +389,7 @@ export function showRunSummary3D(
         size: 0.35,
         color: 0xdaa520,
         emissive: 0xcc7700,
-        emissiveIntensity: 1.5,
+        emissiveIntensity: 4.0,
       });
       riseButton.mesh.position.set(-1.8, -3.3, 0);
       container.add(riseButton.mesh);
@@ -399,7 +399,7 @@ export function showRunSummary3D(
         size: 0.35,
         color: 0x8b7355,
         emissive: 0x554430,
-        emissiveIntensity: 1.0,
+        emissiveIntensity: 4.0,
       });
       retreatButton.mesh.position.set(1.8, -3.3, 0);
       container.add(retreatButton.mesh);

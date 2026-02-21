@@ -61,7 +61,7 @@ export async function createPauseMenu3D(
   // ---- Pre-create all meshes ----
 
   // Backdrop
-  const backdrop = createOverlayBackdrop(0.7);
+  const backdrop = createOverlayBackdrop(0.3);
 
   // UI light for camera-attached MeshStandardMaterial
   const uiLight = createOverlayLight();
