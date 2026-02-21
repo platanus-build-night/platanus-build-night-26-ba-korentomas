@@ -11,6 +11,9 @@ import { createFadeOverlay, fadeToBlack, fadeFromBlack } from './game/transition
 import { AudioManager, MusicPlayer, SfxPlayer, AudioEvent } from './audio';
 import { initCheatConsole } from './cheats/cheatConsole';
 import { registerDefaultCheats } from './cheats/defaultCheats';
+import { showGalleryOverlay } from './ui/galleryOverlay';
+import { showNameEntry } from './ui/nameEntry';
+import { showRunSummary, type RunStats } from './ui/runSummary';
 
 async function init() {
   const { scene, camera, renderer, ambientLight, fog } = createScene();
@@ -32,12 +35,14 @@ async function init() {
 
   let state = GameStateType.MENU;
   let gameLoop: GameLoopContext | null = null;
+  let playerName = 'AAA';
 
   // --- Menu state objects ---
   let corridorState: CorridorState | null = null;
   let title: TitleHandle | null = null;
   let menu: MenuHandle | null = null;
   let allHitTargets: THREE.Object3D[] = [];
+  let creditsEl: HTMLDivElement | null = null;
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -56,6 +61,34 @@ async function init() {
     allHitTargets = menu.items.flatMap((item) => [item.mesh, item.hitArea]);
     renderer.domElement.style.cursor = 'default';
     hoveredIndex = -1;
+
+    // Credits bar
+    creditsEl = document.createElement('div');
+    creditsEl.style.cssText = 'position:fixed;bottom:24px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:8px;z-index:20;pointer-events:none;';
+
+    const banana = document.createElement('video');
+    banana.src = '/banana-spin.webm';
+    banana.autoplay = true;
+    banana.loop = true;
+    banana.muted = true;
+    banana.playsInline = true;
+    banana.style.cssText = 'width:56px;height:56px;mix-blend-mode:screen;filter:contrast(1.3) brightness(1.1);image-rendering:pixelated;';
+
+    const text = document.createElement('span');
+    text.style.cssText = 'font-family:monospace;font-size:13px;color:#daa520;text-shadow:0 0 6px rgba(218,165,32,0.5);pointer-events:auto;';
+    text.textContent = 'Made by Korenblit Tomas  |  Hacked during ';
+
+    const link = document.createElement('a');
+    link.href = 'https://platan.us';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'platan.us';
+    link.style.cssText = 'color:#ff9944;text-decoration:underline;pointer-events:auto;';
+    text.appendChild(link);
+
+    creditsEl.appendChild(banana);
+    creditsEl.appendChild(text);
+    document.body.appendChild(creditsEl);
 
     // Start menu music
     musicPlayer.play(AudioEvent.MUSIC_MENU);
@@ -84,6 +117,10 @@ async function init() {
       }
       corridorState = null;
     }
+    if (creditsEl) {
+      creditsEl.remove();
+      creditsEl = null;
+    }
     allHitTargets = [];
   }
 
@@ -93,6 +130,8 @@ async function init() {
       const label = menu.items[hoveredIndex].label;
       if (label === 'Start') {
         await startGame();
+      } else if (label === 'Gallery') {
+        showGalleryOverlay();
       }
     }
   });
@@ -109,6 +148,9 @@ async function init() {
     sfxPlayer.play(AudioEvent.MENU_SELECT);
     musicPlayer.stop();
 
+    // Show name entry
+    playerName = await showNameEntry();
+
     await fadeToBlack(fadeOverlay, 1000);
 
     // Dispose menu objects
@@ -121,8 +163,88 @@ async function init() {
     // Create game loop
     gameLoop = await createGameLoop(scene, camera, fadeOverlay, ambientLight, fog, musicPlayer, sfxPlayer);
 
+    // Wire pause menu actions
+    gameLoop.onRestart = async () => {
+      if (gameLoop) {
+        gameLoop.dispose();
+        gameLoop = null;
+      }
+      await startGameDirect();
+    };
+    gameLoop.onQuit = () => {
+      returnToMenu();
+    };
+
+    // Wire game over handler
+    gameLoop.onGameOver = () => {
+      handleGameOver();
+    };
+
     state = GameStateType.PLAYING;
     await fadeFromBlack(fadeOverlay, 1000);
+  }
+
+  /** Start game without name entry (used for Restart from pause menu). */
+  async function startGameDirect() {
+    state = GameStateType.FADE_TO_GAME;
+    renderer.domElement.style.cursor = 'default';
+
+    await fadeToBlack(fadeOverlay, 1000);
+
+    // Reset camera
+    camera.position.set(0, 2.5, 0);
+    camera.rotation.set(0, 0, 0);
+
+    // Create game loop
+    gameLoop = await createGameLoop(scene, camera, fadeOverlay, ambientLight, fog, musicPlayer, sfxPlayer);
+
+    // Wire pause menu actions
+    gameLoop.onRestart = async () => {
+      if (gameLoop) {
+        gameLoop.dispose();
+        gameLoop = null;
+      }
+      await startGameDirect();
+    };
+    gameLoop.onQuit = () => {
+      returnToMenu();
+    };
+    gameLoop.onGameOver = () => {
+      handleGameOver();
+    };
+
+    state = GameStateType.PLAYING;
+    await fadeFromBlack(fadeOverlay, 1000);
+  }
+
+  async function handleGameOver() {
+    if (!gameLoop) return;
+    state = GameStateType.GAME_OVER;
+
+    sfxPlayer.play(AudioEvent.STINGER_GAME_OVER);
+
+    const runStats = gameLoop.getRunStats();
+    const summaryStats: RunStats = {
+      playerName,
+      score: runStats.score,
+      floor: runStats.floor,
+      enemiesKilled: runStats.enemiesKilled,
+      creationsUsed: runStats.creationsUsed,
+    };
+
+    const result = await showRunSummary(summaryStats);
+
+    if (gameLoop) {
+      gameLoop.dispose();
+      gameLoop = null;
+    }
+
+    if (result.action === 'play_again') {
+      playerName = await showNameEntry();
+      await startGameDirect();
+    } else {
+      await returnToMenu();
+    }
   }
 
   async function returnToMenu() {
@@ -148,52 +270,8 @@ async function init() {
     await fadeFromBlack(fadeOverlay, 1000);
   }
 
-  // --- Game over click to return ---
-  document.addEventListener('click', () => {
-    if (state === GameStateType.GAME_OVER) {
-      returnToMenu();
-    }
-  });
-
   // Initial menu setup
   await setupMenu();
-
-  // --- Game over overlay ---
-  const gameOverCanvas = document.createElement('canvas');
-  gameOverCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:15;display:none;';
-  document.body.appendChild(gameOverCanvas);
-
-  function showGameOver(score: number, floor: number) {
-    gameOverCanvas.style.display = 'block';
-    gameOverCanvas.width = window.innerWidth;
-    gameOverCanvas.height = window.innerHeight;
-    const ctx = gameOverCanvas.getContext('2d')!;
-
-    // Dark overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, gameOverCanvas.width, gameOverCanvas.height);
-
-    // Game Over text
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#cc2222';
-    ctx.font = `bold ${Math.floor(gameOverCanvas.height / 8)}px monospace`;
-    ctx.fillText('GAME OVER', gameOverCanvas.width / 2, gameOverCanvas.height * 0.35);
-
-    // Score
-    ctx.fillStyle = '#daa520';
-    ctx.font = `bold ${Math.floor(gameOverCanvas.height / 16)}px monospace`;
-    ctx.fillText(`SCORE: ${score}`, gameOverCanvas.width / 2, gameOverCanvas.height * 0.5);
-    ctx.fillText(`FLOOR: ${floor}`, gameOverCanvas.width / 2, gameOverCanvas.height * 0.58);
-
-    // Click to continue
-    ctx.fillStyle = '#888';
-    ctx.font = `${Math.floor(gameOverCanvas.height / 24)}px monospace`;
-    ctx.fillText('Click to return to menu', gameOverCanvas.width / 2, gameOverCanvas.height * 0.72);
-  }
-
-  function hideGameOver() {
-    gameOverCanvas.style.display = 'none';
-  }
 
   // --- Animate loop ---
   let lastTime = performance.now();
@@ -241,20 +319,13 @@ async function init() {
 
       if (gameLoop.isGameOver() && !gameOverShown) {
         gameOverShown = true;
-        state = GameStateType.GAME_OVER;
-        sfxPlayer.play(AudioEvent.STINGER_GAME_OVER);
-        showGameOver(gameLoop.getScore(), gameLoop.getFloor());
-
-        // Return to menu after click
-        const handleReturn = () => {
-          document.removeEventListener('click', handleReturn);
-          hideGameOver();
-          gameOverShown = false;
-          returnToMenu();
-        };
-        // Delay listener to avoid immediate trigger
-        setTimeout(() => document.addEventListener('click', handleReturn), 500);
+        gameLoop.onGameOver?.();
       }
+    }
+
+    // Reset gameOverShown when we leave GAME_OVER state
+    if (state !== GameStateType.PLAYING && state !== GameStateType.GAME_OVER) {
+      gameOverShown = false;
     }
 
     composer.render();

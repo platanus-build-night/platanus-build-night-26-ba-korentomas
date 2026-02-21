@@ -102,7 +102,12 @@ function onInputKeydown(e: KeyboardEvent): void {
       historyIndex = -1;
 
       const result = executeCheat(value);
-      showToast(result);
+      if (result instanceof Promise) {
+        showToast('Running...');
+        result.then(msg => showToast(msg)).catch(err => showToast(`Error: ${err}`));
+      } else {
+        showToast(result);
+      }
       inputEl.value = '';
       hideSuggestions();
       close();
@@ -210,6 +215,13 @@ export function isConsoleOpen(): boolean {
   return isOpen;
 }
 
+let suppressed = false;
+
+/** Suppress cheat console keybind (e.g. during name entry overlays). */
+export function suppressCheatConsole(value: boolean): void {
+  suppressed = value;
+}
+
 export function initCheatConsole(): void {
   createDOM();
 
@@ -220,6 +232,8 @@ export function initCheatConsole(): void {
     ) {
       return;
     }
+
+    if (suppressed) return;
 
     if (e.key === 't' || e.key === 'T') {
       e.preventDefault();

@@ -31,6 +31,7 @@ export class EnemyManager {
   private scene: THREE.Scene;
   private pendingPoints = 0;
   private onEnemyKilledCb: ((roomIndex: number) => void) | null = null;
+  private onEnemyDiedCb: ((x: number, z: number, color: number) => void) | null = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -38,6 +39,10 @@ export class EnemyManager {
 
   setOnEnemyKilled(cb: (roomIndex: number) => void): void {
     this.onEnemyKilledCb = cb;
+  }
+
+  setOnEnemyDied(cb: (x: number, z: number, color: number) => void): void {
+    this.onEnemyDiedCb = cb;
   }
 
   spawnEnemiesInRoom(
@@ -55,6 +60,10 @@ export class EnemyManager {
 
       const model = enemyType.modelGenerator();
       model.position.set(x, 0, z);
+      // Apply optional scale multiplier from enemy type
+      if (enemyType.scale && enemyType.scale !== 1) {
+        model.scale.multiplyScalar(enemyType.scale);
+      }
       this.scene.add(model);
 
       // Clone materials per enemy so tint/fade is independent
@@ -100,13 +109,16 @@ export class EnemyManager {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
 
-      // Handle death fade
+      // Handle death fade with collapse effect
       if (enemy.state === EnemyAIState.DEAD) {
         enemy.deathFade -= delta / DEATH_FADE_DURATION;
-        const opacity = Math.max(0, enemy.deathFade);
+        const t = Math.max(0, enemy.deathFade);
         for (const mat of enemy.materials) {
-          mat.opacity = opacity;
+          mat.opacity = t;
         }
+        // Collapse effect: scale Y shrinks from 1.0 down to 0.3
+        const scaleY = 0.3 + 0.7 * t;
+        enemy.model.scale.setY(scaleY);
         if (enemy.deathFade <= 0) {
           this.removeEnemy(i);
         }
@@ -201,6 +213,9 @@ export class EnemyManager {
       enemy.deathFade = 1;
       this.pendingPoints += enemy.type.points;
       this.onEnemyKilledCb?.(enemy.roomIndex);
+      // Trigger death fragment explosion
+      const deathColor = enemy.originalColors[0] ?? 0x884422;
+      this.onEnemyDiedCb?.(enemy.position.x, enemy.position.z, deathColor);
     }
   }
 
@@ -224,10 +239,22 @@ export class EnemyManager {
   private removeEnemy(index: number): void {
     const enemy = this.enemies[index];
     this.scene.remove(enemy.model);
-    // Dispose only cloned materials (NOT shared geometries)
+    // Dispose cloned materials
     for (const mat of enemy.materials) {
       mat.dispose();
     }
+    // Dispose cloned geometries from sprite enemies (PlaneGeometry clones)
+    enemy.model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        // Sprite enemies clone their geometry; dispose those.
+        // Skeleton models share geometries (singletons), but disposing a
+        // shared geometry would break other skeletons. We only dispose
+        // PlaneGeometry instances which are always per-instance clones.
+        if (child.geometry instanceof THREE.PlaneGeometry) {
+          child.geometry.dispose();
+        }
+      }
+    });
     this.enemies.splice(index, 1);
   }
 }

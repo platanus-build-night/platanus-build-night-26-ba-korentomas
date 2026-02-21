@@ -8,28 +8,36 @@ export interface DungeonLight {
   phaseOffset: number;
 }
 
-const MAX_ACTIVE_LIGHTS = 6;
-const BASE_INTENSITY = 6.0;
+const MAX_ACTIVE_LIGHTS = 10;
+const BASE_INTENSITY = 4.5;
+const LIGHT_RANGE = 18;
 const FLICKER_AMOUNT = 0.4;
 
 export function createDungeonLights(rooms: Room[], floorGroup: THREE.Group): DungeonLight[] {
   const lights: DungeonLight[] = [];
 
   for (const room of rooms) {
-    const worldX = room.x + room.width / 2;
-    const worldZ = room.y + room.height / 2;
+    const inset = 1;
+    const corners = [
+      { x: room.x + inset, z: room.y + inset },
+      { x: room.x + room.width - inset, z: room.y + inset },
+      { x: room.x + inset, z: room.y + room.height - inset },
+      { x: room.x + room.width - inset, z: room.y + room.height - inset },
+    ];
 
-    const light = new THREE.PointLight(0xff8830, BASE_INTENSITY, 25, 1);
-    light.position.set(worldX, 4.5, worldZ);
-    light.visible = false;
-    floorGroup.add(light);
+    for (const corner of corners) {
+      const light = new THREE.PointLight(0xff8830, BASE_INTENSITY, LIGHT_RANGE, 1);
+      light.position.set(corner.x, 4.0, corner.z);
+      light.visible = false;
+      floorGroup.add(light);
 
-    lights.push({
-      light,
-      worldX,
-      worldZ,
-      phaseOffset: Math.random() * Math.PI * 2,
-    });
+      lights.push({
+        light,
+        worldX: corner.x,
+        worldZ: corner.z,
+        phaseOffset: Math.random() * Math.PI * 2,
+      });
+    }
   }
 
   return lights;

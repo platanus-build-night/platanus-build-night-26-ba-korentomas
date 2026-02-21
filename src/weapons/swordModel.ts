@@ -9,6 +9,8 @@ export class SwordModel {
   private idlePosition: THREE.Vector3;
   private idleRotation: THREE.Euler;
   private time = 0;
+  private lastSwayX = 0;
+  private lastSwayY = 0;
   public currentWeaponName = 'Default Sword';
   public currentWeaponId: number | null = null;
 
@@ -17,9 +19,9 @@ export class SwordModel {
     this.group = new THREE.Group();
     this.loader = new GLTFLoader();
 
-    // Position in lower-right of FPS view
-    this.idlePosition = new THREE.Vector3(0.4, -0.35, -0.6);
-    this.idleRotation = new THREE.Euler(0, -Math.PI / 6, 0);
+    // Position in lower-right of FPS view — blade angled forward and slightly tilted
+    this.idlePosition = new THREE.Vector3(0.38, -0.38, -0.55);
+    this.idleRotation = new THREE.Euler(-0.15, -Math.PI / 5, -0.05);
 
     this.group.position.copy(this.idlePosition);
     this.group.rotation.copy(this.idleRotation);
@@ -42,15 +44,26 @@ export class SwordModel {
     const gltf = await this.loader.parseAsync(buffer, './');
     const model = gltf.scene;
 
-    // Normalize to fit sword size
+    // Scale to fit weapon size — slightly larger for better FPS presence
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = 0.5 / maxDim;
+    const scale = 0.55 / maxDim;
     model.scale.setScalar(scale);
 
+    // Re-compute box after scaling
+    box.setFromObject(model);
     const center = box.getCenter(new THREE.Vector3());
-    model.position.sub(center).multiplyScalar(scale);
+    const min = box.min;
+
+    // Position so bottom of bounding box (handle) aligns with grip point (origin)
+    // Blade points up, handle at the bottom
+    model.position.x = -center.x;
+    model.position.z = -center.z;
+    model.position.y = -min.y;
+
+    // Tilt the model slightly forward so the blade points ahead in FPS view
+    model.rotation.x = -0.2;
 
     this.model = model;
     this.group.add(model);
@@ -93,29 +106,62 @@ export class SwordModel {
     this.time += delta;
 
     if (isAttacking) {
-      // Swing animation: 0->0.5 forward swing, 0.5->1 return
+      // Diagonal slash: wind up, slash across, recover
       let t: number;
-      if (attackProgress < 0.5) {
-        t = attackProgress / 0.5;
+      if (attackProgress < 0.15) {
+        // Wind-up phase (pull back slightly)
+        t = -(attackProgress / 0.15) * 0.15;
+      } else if (attackProgress < 0.55) {
+        // Forward slash (fast)
+        const p = (attackProgress - 0.15) / 0.4;
+        t = -0.15 + p * 1.15; // from -0.15 to 1.0
       } else {
-        t = 1 - (attackProgress - 0.5) / 0.5;
+        // Recovery (ease back to idle)
+        const p = (attackProgress - 0.55) / 0.45;
+        t = 1.0 - p; // 1.0 back to 0
       }
-      // Smoothstep easing
-      t = t * t * (3 - 2 * t);
+      // Smoothstep easing on the main slash
+      const st = Math.abs(t);
+      const eased = st * st * (3 - 2 * st) * Math.sign(t);
 
-      this.group.rotation.z = this.idleRotation.z - t * 0.8;
-      this.group.rotation.x = this.idleRotation.x - t * 0.3;
-      this.group.position.z = this.idlePosition.z - t * 0.15;
+      // Diagonal slash motion — sweeps from upper-right to lower-left
+      this.group.rotation.z = this.idleRotation.z - eased * 1.0;
+      this.group.rotation.x = this.idleRotation.x - eased * 0.4;
+      this.group.rotation.y = this.idleRotation.y + eased * 0.25;
+      this.group.position.z = this.idlePosition.z - eased * 0.12;
+      this.group.position.x = this.idlePosition.x - eased * 0.08;
+      this.group.position.y = this.idlePosition.y + eased * 0.05;
     } else {
-      // Idle bob (subtle breathing sway)
-      const bobX = Math.sin(this.time * 1.5) * 0.005;
-      const bobY = Math.sin(this.time * 2.0) * 0.003;
+      // Idle sway — multi-frequency for organic feel
+      // Primary breathing rhythm
+      const breathX = Math.sin(this.time * 1.2) * 0.006;
+      const breathY = Math.sin(this.time * 1.8) * 0.004;
+      // Secondary micro-sway (higher frequency, lower amplitude)
+      const microX = Math.sin(this.time * 3.1 + 0.7) * 0.002;
+      const microY = Math.cos(this.time * 2.7 + 1.3) * 0.0015;
+      // Combine
+      const targetSwayX = breathX + microX;
+      const targetSwayY = breathY + microY;
 
-      this.group.position.x = this.idlePosition.x + bobX;
-      this.group.position.y = this.idlePosition.y + bobY;
+      // Smooth interpolation for fluid feel
+      const smoothing = 1.0 - Math.exp(-8 * delta);
+      this.lastSwayX += (targetSwayX - this.lastSwayX) * smoothing;
+      this.lastSwayY += (targetSwayY - this.lastSwayY) * smoothing;
+
+      this.group.position.x = this.idlePosition.x + this.lastSwayX;
+      this.group.position.y = this.idlePosition.y + this.lastSwayY;
       this.group.position.z = this.idlePosition.z;
-      this.group.rotation.copy(this.idleRotation);
+
+      // Subtle rotational sway (weapon tilts slightly with breathing)
+      const rotSway = Math.sin(this.time * 1.2) * 0.008;
+      this.group.rotation.x = this.idleRotation.x;
+      this.group.rotation.y = this.idleRotation.y + rotSway;
+      this.group.rotation.z = this.idleRotation.z + rotSway * 0.5;
     }
+  }
+
+  setVisible(visible: boolean): void {
+    this.group.visible = visible;
   }
 
   dispose(): void {

@@ -1,4 +1,4 @@
-const LINE_COLOR = '#2a1a0a';
+let lineColor = '#2a1a0a';
 const LINE_WIDTH = 3;
 const ERASER_WIDTH = 20;
 
@@ -7,12 +7,13 @@ export interface SketchPad {
   clear: () => void;
   toDataURL: () => string;
   destroy: () => void;
+  setColor: (color: string) => void;
 }
 
 export function createSketchPad(container: HTMLElement): SketchPad {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 1024;
+  canvas.height = 1024;
   Object.assign(canvas.style, {
     width: '100%',
     height: '100%',
@@ -65,7 +66,7 @@ export function createSketchPad(container: HTMLElement): SketchPad {
       ctx.lineWidth = ERASER_WIDTH;
     } else {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = LINE_COLOR;
+      ctx.strokeStyle = lineColor;
       ctx.lineWidth = LINE_WIDTH;
 
       // Add slight wobble for hand-drawn feel
@@ -110,6 +111,10 @@ export function createSketchPad(container: HTMLElement): SketchPad {
     return canvas.toDataURL('image/png');
   }
 
+  function setColor(color: string): void {
+    lineColor = color;
+  }
+
   function destroy(): void {
     canvas.removeEventListener('mousedown', startStroke);
     canvas.removeEventListener('mousemove', moveStroke);
@@ -122,5 +127,5 @@ export function createSketchPad(container: HTMLElement): SketchPad {
     canvas.remove();
   }
 
-  return { canvas, clear, toDataURL, destroy };
+  return { canvas, clear, toDataURL, destroy, setColor };
 }

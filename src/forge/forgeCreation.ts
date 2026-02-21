@@ -5,6 +5,7 @@ export interface ForgedItem {
   id: number;
   name: string;
   category: 'weapon' | 'enemy' | 'decoration';
+  weaponType?: string;
 }
 
 export function arrayBufferToDataUrl(buffer: ArrayBuffer, mimeType: string): string {
@@ -23,8 +24,9 @@ export async function forgeCreation(drawingResult: DrawingResult): Promise<Forge
     body: JSON.stringify({
       sketch: drawingResult.imageData,
       category: drawingResult.categoryId,
-      name: drawingResult.textPrompt || 'Custom Creation',
-      weaponType: drawingResult.categoryId === 'weapon' ? 'sword' : undefined,
+      name: drawingResult.name || drawingResult.textPrompt || 'Custom Creation',
+      weaponType: drawingResult.weaponType || (drawingResult.categoryId === 'weapon' ? 'sword' : undefined),
+      projectileSketch: drawingResult.projectileImageData || undefined,
       description: drawingResult.textPrompt || undefined,
     }),
   });
@@ -39,5 +41,6 @@ export async function forgeCreation(drawingResult: DrawingResult): Promise<Forge
     id: Number(res.headers.get('X-Weapon-Id') || res.headers.get('X-Item-Id') || '0'),
     name: res.headers.get('X-Weapon-Name') || res.headers.get('X-Item-Name') || 'Custom Creation',
     category: (res.headers.get('X-Item-Category') || drawingResult.categoryId || 'weapon') as ForgedItem['category'],
+    weaponType: res.headers.get('X-Weapon-Type') || drawingResult.weaponType || undefined,
   };
 }

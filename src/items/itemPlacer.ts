@@ -51,26 +51,38 @@ function pickRandomRoom(rooms: Room[]): Room {
   return rooms[Math.floor(Math.random() * rooms.length)];
 }
 
+/** Spawn an item at a specific world position (used by breakable system for loot drops) */
+export function spawnItemAt(
+  x: number,
+  z: number,
+  type: ItemType,
+  group: THREE.Group,
+  items: PlacedItem[],
+): PlacedItem {
+  const def = ITEM_DEFS[type];
+  const model = def.modelGenerator();
+  model.position.set(x, 0.5, z);
+  group.add(model);
+
+  const placed: PlacedItem = {
+    def,
+    model,
+    position: new THREE.Vector3(x, 0, z),
+    collected: false,
+  };
+  items.push(placed);
+  return placed;
+}
+
 function placeItem(
   type: ItemType,
   room: Room,
   group: THREE.Group,
   items: PlacedItem[],
 ): void {
-  const def = ITEM_DEFS[type];
-  const model = def.modelGenerator();
-
   // Random position within room (avoid edges)
   const x = room.x + 2 + Math.random() * Math.max(0, room.width - 4);
   const z = room.y + 2 + Math.random() * Math.max(0, room.height - 4);
 
-  model.position.set(x, 0.5, z); // Float above ground
-  group.add(model);
-
-  items.push({
-    def,
-    model,
-    position: new THREE.Vector3(x, 0, z),
-    collected: false,
-  });
+  spawnItemAt(x, z, type, group, items);
 }

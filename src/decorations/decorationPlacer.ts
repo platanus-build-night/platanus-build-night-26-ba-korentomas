@@ -6,24 +6,55 @@ import {
   createCrateModel,
   createBonesModel,
   createPillarModel,
+  createChestModel,
+  createUrnModel,
+  createCandelabraModel,
 } from './decorationModels';
 
-interface DecorationDef {
+export type LootType = 'health' | 'score';
+
+export interface DecorationDef {
   name: string;
   create: () => THREE.Group;
   frequency: number; // 0-1 chance per eligible cell
   wallOnly: boolean; // true = only place adjacent to walls
+  breakable: boolean;
+  health: number; // hits to break (0 = not breakable)
+  lootType?: LootType; // what drops when broken (if any)
+}
+
+export interface PlacedDecoration {
+  model: THREE.Group;
+  def: DecorationDef;
+  worldX: number;
+  worldZ: number;
 }
 
 const DECORATIONS: DecorationDef[] = [
-  { name: 'barrel', create: createBarrelModel, frequency: 0.06, wallOnly: true },
-  { name: 'crate', create: createCrateModel, frequency: 0.04, wallOnly: true },
-  { name: 'bones', create: createBonesModel, frequency: 0.05, wallOnly: false },
-  { name: 'pillar', create: createPillarModel, frequency: 0.02, wallOnly: false },
+  { name: 'barrel', create: createBarrelModel, frequency: 0.12, wallOnly: true, breakable: true, health: 2 },
+  { name: 'crate', create: createCrateModel, frequency: 0.10, wallOnly: true, breakable: true, health: 2 },
+  { name: 'bones', create: createBonesModel, frequency: 0.08, wallOnly: false, breakable: false, health: 0 },
+  { name: 'pillar', create: createPillarModel, frequency: 0.04, wallOnly: false, breakable: false, health: 0 },
+  { name: 'chest', create: createChestModel, frequency: 0.05, wallOnly: true, breakable: true, health: 3, lootType: 'score' },
+  { name: 'urn', create: createUrnModel, frequency: 0.08, wallOnly: false, breakable: true, health: 1 },
+  { name: 'candelabra', create: createCandelabraModel, frequency: 0.05, wallOnly: true, breakable: false, health: 0 },
 ];
 
+/** Module-level store of placed decorations with full metadata (for breakable system) */
+let lastPlacedDecorations: PlacedDecoration[] = [];
+
+/** Get all placed decorations from the most recent spawnDecorations call */
+export function getPlacedDecorations(): PlacedDecoration[] {
+  return lastPlacedDecorations;
+}
+
+/**
+ * Spawn decorations into a dungeon floor.
+ * Returns THREE.Group[] for backward compatibility with gameLoop.
+ * Use getPlacedDecorations() for richer metadata (breakable info, world positions).
+ */
 export function spawnDecorations(floor: DungeonFloor, group: THREE.Group): THREE.Group[] {
-  const placed: THREE.Group[] = [];
+  const placed: PlacedDecoration[] = [];
   const { grid, rooms, playerStart, exitPosition, spawnPoints } = floor;
 
   // Build a Set of forbidden cells (player start, exit, spawn points)
@@ -57,7 +88,12 @@ export function spawnDecorations(floor: DungeonFloor, group: THREE.Group): THREE
             // Small random rotation for variety
             model.rotation.y = Math.random() * Math.PI * 2;
             group.add(model);
-            placed.push(model);
+            placed.push({
+              model,
+              def,
+              worldX: col,
+              worldZ: row,
+            });
             break; // Only one decoration per cell
           }
         }
@@ -65,7 +101,11 @@ export function spawnDecorations(floor: DungeonFloor, group: THREE.Group): THREE
     }
   }
 
-  return placed;
+  // Store full metadata for breakable system access
+  lastPlacedDecorations = placed;
+
+  // Return just the Group array for backward compatibility
+  return placed.map((p) => p.model);
 }
 
 function isAdjacentToWall(grid: CellType[][], x: number, z: number): boolean {
@@ -84,4 +124,5 @@ export function disposeDecorations(decorations: THREE.Group[]): void {
     if (model.parent) model.parent.remove(model);
   }
   decorations.length = 0;
+  lastPlacedDecorations = [];
 }

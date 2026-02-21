@@ -13,7 +13,7 @@ let sharedMat: {
 function ensureShared(): void {
   if (!sharedGeo) {
     sharedGeo = {
-      panel: new THREE.BoxGeometry(1, 4.5, 0.15),
+      panel: new THREE.BoxGeometry(3, 4.5, 0.15),
     };
   }
   if (!sharedMat) {
@@ -36,11 +36,11 @@ export function createDoorModel(orientation: 'ns' | 'ew'): THREE.Group {
 
   const panel = new THREE.Mesh(sharedGeo!.panel, sharedMat!.wood);
   // Offset pivot so door swings from its edge, not center
-  panel.position.set(0.5, 4.5 / 2, 0);
+  panel.position.set(1.5, 4.5 / 2, 0);
   pivot.add(panel);
 
   // Shift pivot so door is centered on the cell
-  pivot.position.set(-0.5, 0, 0);
+  pivot.position.set(-1.5, 0, 0);
   group.add(pivot);
 
   // Rotate based on orientation:

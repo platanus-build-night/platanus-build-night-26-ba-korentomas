@@ -7,6 +7,7 @@ export interface ProjectileType {
   piercing: boolean; // passes through enemies?
   color: number; // emissive hex color
   scale: number; // visual size multiplier
+  spriteDataUrl?: string; // custom sprite texture — billboard plane instead of sphere
 }
 
 export const PROJECTILE_TYPES = {

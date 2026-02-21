@@ -32,8 +32,8 @@ export function createScene(): SceneContext {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // Dim ambient light so torches dominate
-  const ambient = new THREE.AmbientLight(0x111111);
+  // Ambient light — bright enough to see but torches still dominate
+  const ambient = new THREE.AmbientLight(0x222222);
   scene.add(ambient);
 
   return { scene, camera, renderer, ambientLight: ambient, fog: scene.fog as THREE.FogExp2 };

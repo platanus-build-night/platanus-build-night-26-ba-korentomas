@@ -3,17 +3,156 @@ import {
   DrawingCategory,
   DrawingResult,
   DEFAULT_CATEGORIES,
+  WEAPON_TYPES,
+  WeaponTypeOption,
 } from './drawingTypes';
+import { createProjectilePad, ProjectilePad } from './projectilePad';
 
 let overlay: HTMLDivElement | null = null;
 let sketchPad: SketchPad | null = null;
 let selectedCategoryId = '';
+let selectedWeaponType = 'sword';
 let isVisible = false;
 let categoryButtons: HTMLButtonElement[] = [];
-let promptInput: HTMLInputElement | null = null;
+let nameInput: HTMLInputElement | null = null;
+let promptInput: HTMLTextAreaElement | null = null;
 let pendingResolve: ((result: DrawingResult | null) => void) | null = null;
 let forgeOverlayEl: HTMLDivElement | null = null;
 let genBtn: HTMLButtonElement | null = null;
+let weaponTypeContainer: HTMLDivElement | null = null;
+let weaponTypeButtons: HTMLButtonElement[] = [];
+let splatCanvases: HTMLCanvasElement[] = [];
+let selectedSplatIndex = 0;
+let projectilePad: ProjectilePad | null = null;
+let projectilePadVisible = false;
+
+// --- Color splat palette ---
+
+const SPLAT_COLORS = [
+  '#1a1a1a', // black
+  '#5c3317', // dark brown
+  '#8b0000', // dark red
+  '#cc2222', // red
+  '#e87722', // orange
+  '#daa520', // gold/yellow
+  '#228b22', // green
+  '#2244aa', // blue
+  '#6b2fa0', // purple
+  '#f5f5f5', // white
+];
+
+function drawSplatPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, seed: number): void {
+  const points = 8;
+  ctx.beginPath();
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * Math.PI * 2;
+    const jitter = 0.6 + (Math.sin(seed * 13 + i * 7) * 0.5 + 0.5) * 0.8;
+    const px = cx + Math.cos(angle) * r * jitter;
+    const py = cy + Math.sin(angle) * r * jitter;
+    if (i === 0) ctx.moveTo(px, py);
+    else {
+      const cpAngle = ((i - 0.5) / points) * Math.PI * 2;
+      const cpJitter = 0.7 + (Math.sin(seed * 17 + i * 11) * 0.5 + 0.5) * 0.7;
+      const cpx = cx + Math.cos(cpAngle) * r * cpJitter * 1.1;
+      const cpy = cy + Math.sin(cpAngle) * r * cpJitter * 1.1;
+      ctx.quadraticCurveTo(cpx, cpy, px, py);
+    }
+  }
+  ctx.closePath();
+}
+
+function drawSplat(canvas: HTMLCanvasElement, color: string, seed: number, selected: boolean, hover: boolean): void {
+  const ctx = canvas.getContext('2d')!;
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = 11;
+
+  drawSplatPath(ctx, cx, cy, r, seed);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  drawSplatPath(ctx, cx, cy, r, seed);
+  if (selected) {
+    ctx.strokeStyle = '#daa520';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#daa520';
+    ctx.shadowBlur = 6;
+  } else if (hover) {
+    ctx.strokeStyle = '#daa520';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.strokeStyle = '#1a1a0a';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+  }
+  ctx.stroke();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+}
+
+function buildSplatPalette(parchmentWrap: HTMLDivElement): HTMLDivElement {
+  const container = document.createElement('div');
+  Object.assign(container.style, {
+    position: 'absolute',
+    top: '28px',
+    right: '28px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    zIndex: '3',
+  });
+
+  splatCanvases = [];
+  selectedSplatIndex = 0;
+
+  for (let i = 0; i < SPLAT_COLORS.length; i++) {
+    const color = SPLAT_COLORS[i];
+    const seed = i * 3.7 + 1.2;
+    const splatCanvas = document.createElement('canvas');
+    splatCanvas.width = 32;
+    splatCanvas.height = 32;
+    Object.assign(splatCanvas.style, {
+      width: '32px',
+      height: '32px',
+      cursor: 'pointer',
+      display: 'block',
+    });
+    drawSplat(splatCanvas, color, seed, i === selectedSplatIndex, false);
+
+    splatCanvas.addEventListener('mouseenter', () => {
+      if (i !== selectedSplatIndex) {
+        drawSplat(splatCanvas, color, seed, false, true);
+      }
+    });
+    splatCanvas.addEventListener('mouseleave', () => {
+      drawSplat(splatCanvas, color, seed, i === selectedSplatIndex, false);
+    });
+    splatCanvas.addEventListener('click', () => {
+      const prevIdx = selectedSplatIndex;
+      selectedSplatIndex = i;
+      sketchPad?.setColor(color);
+      projectilePad?.setColor(color);
+      // Redraw previous and current
+      if (prevIdx !== i && splatCanvases[prevIdx]) {
+        drawSplat(splatCanvases[prevIdx], SPLAT_COLORS[prevIdx], prevIdx * 3.7 + 1.2, false, false);
+      }
+      drawSplat(splatCanvas, color, seed, true, false);
+    });
+
+    splatCanvases.push(splatCanvas);
+    container.appendChild(splatCanvas);
+  }
+
+  parchmentWrap.appendChild(container);
+  return container;
+}
 
 // --- Parchment border rendering ---
 
@@ -158,6 +297,40 @@ function drawCategoryButton(
   ctx.fillText(label, w / 2, h / 2 + 16);
 }
 
+// --- Weapon type button rendering ---
+
+function drawWeaponTypeButton(
+  canvas: HTMLCanvasElement,
+  wt: WeaponTypeOption,
+  selected: boolean
+): void {
+  const ctx = canvas.getContext('2d')!;
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  ctx.fillStyle = selected ? '#e8d5a3' : '#f4e4c1';
+  roundedRect(ctx, 2, 2, w - 4, h - 4, 6);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = selected ? '#2a1a0a' : 'rgba(42, 26, 10, 0.4)';
+  ctx.lineWidth = selected ? 2 : 1;
+  drawRoughRect(ctx, 3, 3, w - 6, h - 6, selected ? 1.5 : 1);
+
+  // Icon
+  ctx.font = '16px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#2a1a0a';
+  ctx.fillText(wt.icon, w / 2, h / 2 - 6);
+
+  // Label
+  ctx.font = '600 9px "Courier New", monospace';
+  ctx.fillText(wt.label, w / 2, h / 2 + 12);
+}
+
 // --- Generate button rendering ---
 
 function drawGenButton(canvas: HTMLCanvasElement, hover: boolean): void {
@@ -205,6 +378,85 @@ function drawClearButton(canvas: HTMLCanvasElement, hover: boolean): void {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#2a1a0a';
   ctx.fillText('CLEAR', w / 2, h / 2);
+}
+
+// --- Prompt placeholder helpers ---
+
+function getPromptPlaceholder(categoryId: string): string {
+  switch (categoryId) {
+    case 'weapon':
+      return 'e.g. Flaming sword with dragon guard';
+    case 'enemy':
+      return 'e.g. Shadow goblin with glowing eyes';
+    case 'decoration':
+      return 'e.g. Ancient battle scene painting';
+    default:
+      return 'Describe your creation...';
+  }
+}
+
+// --- Weapon type grid ---
+
+function buildWeaponTypeGrid(sidebar: HTMLDivElement): HTMLDivElement {
+  const container = document.createElement('div');
+  Object.assign(container.style, {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '4px',
+  });
+
+  weaponTypeButtons = [];
+
+  for (const wt of WEAPON_TYPES) {
+    const btn = document.createElement('button');
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      padding: '0',
+      cursor: 'pointer',
+      display: 'block',
+    });
+    const btnCanvas = document.createElement('canvas');
+    btnCanvas.width = 65;
+    btnCanvas.height = 44;
+    Object.assign(btnCanvas.style, { width: '100%', height: 'auto' });
+    btn.appendChild(btnCanvas);
+    drawWeaponTypeButton(btnCanvas, wt, wt.id === selectedWeaponType);
+
+    btn.addEventListener('click', () => {
+      selectedWeaponType = wt.id;
+      updateWeaponTypeButtons();
+      updateProjectilePadVisibility();
+    });
+
+    weaponTypeButtons.push(btn);
+    container.appendChild(btn);
+  }
+
+  sidebar.appendChild(container);
+  return container;
+}
+
+function updateWeaponTypeButtons(): void {
+  for (let i = 0; i < WEAPON_TYPES.length; i++) {
+    const wt = WEAPON_TYPES[i];
+    const btn = weaponTypeButtons[i];
+    const canvas = btn.querySelector('canvas')!;
+    drawWeaponTypeButton(canvas, wt, wt.id === selectedWeaponType);
+  }
+}
+
+function updateProjectilePadVisibility(): void {
+  const selectedWt = WEAPON_TYPES.find(w => w.id === selectedWeaponType);
+  const shouldShow = selectedCategoryId === 'weapon' && selectedWt?.hasProjectile === true;
+
+  if (shouldShow) {
+    projectilePad?.show();
+    projectilePadVisible = true;
+  } else {
+    projectilePad?.hide();
+    projectilePadVisible = false;
+  }
 }
 
 // --- Main overlay ---
@@ -267,7 +519,7 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   parchmentWrap.appendChild(canvasWrap);
 
   // --- Right: sidebar ---
-  const sidebar = document.createElement('div');
+  const sidebar = document.createElement('div') as HTMLDivElement;
   Object.assign(sidebar.style, {
     display: 'flex',
     flexDirection: 'column',
@@ -303,16 +555,63 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     btn.addEventListener('click', () => {
       selectedCategoryId = cat.id;
       updateCategoryButtons(categories);
+      updateWeaponTypeVisibility();
+      updateProjectilePadVisibility();
+      updatePromptPlaceholder();
     });
 
     categoryButtons.push(btn);
     sidebar.appendChild(btn);
   }
 
-  // Text prompt input
-  promptInput = document.createElement('input');
-  promptInput.type = 'text';
-  promptInput.placeholder = 'Describe your creation...';
+  // Weapon type grid (shown only for 'weapon' category)
+  weaponTypeContainer = buildWeaponTypeGrid(sidebar);
+  updateWeaponTypeVisibility();
+
+  // Name input
+  const nameLabel = document.createElement('div');
+  Object.assign(nameLabel.style, {
+    color: '#2a1a0a',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '12px',
+    fontWeight: '600',
+  });
+  nameLabel.textContent = 'Name';
+  sidebar.appendChild(nameLabel);
+
+  nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Name your creation';
+  nameInput.maxLength = 50;
+  Object.assign(nameInput.style, {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '6px 10px',
+    background: 'rgba(210, 180, 140, 0.3)',
+    border: '2px solid #8b7355',
+    borderRadius: '6px',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '14px',
+    color: '#2a1a0a',
+    outline: 'none',
+  });
+  sidebar.appendChild(nameInput);
+
+  // Prompt label
+  const promptLabel = document.createElement('div');
+  Object.assign(promptLabel.style, {
+    color: '#2a1a0a',
+    fontFamily: '"Courier New", Courier, monospace',
+    fontSize: '12px',
+    fontWeight: '600',
+  });
+  promptLabel.textContent = 'Describe your creation';
+  sidebar.appendChild(promptLabel);
+
+  // Text prompt textarea
+  promptInput = document.createElement('textarea');
+  promptInput.rows = 3;
+  promptInput.placeholder = getPromptPlaceholder(selectedCategoryId);
   Object.assign(promptInput.style, {
     width: '100%',
     boxSizing: 'border-box',
@@ -321,9 +620,10 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     border: '2px solid #8b7355',
     borderRadius: '6px',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '13px',
+    fontSize: '15px',
     color: '#2a1a0a',
     outline: 'none',
+    resize: 'vertical',
   });
   sidebar.appendChild(promptInput);
 
@@ -411,6 +711,14 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   document.body.appendChild(root);
   sketchPad = createSketchPad(canvasWrap);
 
+  // Build color splat palette on parchment
+  buildSplatPalette(parchmentWrap as HTMLDivElement);
+
+  // Build projectile pad on parchment
+  projectilePad = createProjectilePad(parchmentWrap);
+  projectilePadVisible = false;
+  updateProjectilePadVisibility();
+
   return root;
 }
 
@@ -423,6 +731,16 @@ function updateCategoryButtons(categories: DrawingCategory[]): void {
   }
 }
 
+function updateWeaponTypeVisibility(): void {
+  if (!weaponTypeContainer) return;
+  weaponTypeContainer.style.display = selectedCategoryId === 'weapon' ? 'grid' : 'none';
+}
+
+function updatePromptPlaceholder(): void {
+  if (!promptInput) return;
+  promptInput.placeholder = getPromptPlaceholder(selectedCategoryId);
+}
+
 function handleGenerate(): void {
   if (!sketchPad || !pendingResolve) return;
 
@@ -430,8 +748,12 @@ function handleGenerate(): void {
     imageData: sketchPad.toDataURL(),
     categoryId: selectedCategoryId,
     textPrompt: promptInput?.value ?? '',
+    name: nameInput?.value?.trim() || '',
     width: sketchPad.canvas.width,
     height: sketchPad.canvas.height,
+    weaponType: selectedCategoryId === 'weapon' ? selectedWeaponType : undefined,
+    projectileImageData: (projectilePad && projectilePadVisible) ? projectilePad.toDataURL() : undefined,
+    projectileDominantColor: (projectilePad && projectilePadVisible) ? projectilePad.getDominantColor() : undefined,
   };
 
   pendingResolve(result);
@@ -466,12 +788,27 @@ export function hideDrawingOverlay(): void {
     pendingResolve = null;
   }
 
+  // Cleanup projectile pad
+  if (projectilePad) {
+    projectilePad.destroy();
+    projectilePad = null;
+    projectilePadVisible = false;
+  }
+
+  // Cleanup splat palette
+  splatCanvases = [];
+
+  // Cleanup weapon type buttons
+  weaponTypeButtons = [];
+  weaponTypeContainer = null;
+
   sketchPad?.destroy();
   sketchPad = null;
   overlay.remove();
   overlay = null;
   isVisible = false;
   categoryButtons = [];
+  nameInput = null;
   promptInput = null;
   genBtn = null;
   forgeOverlayEl = null;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { ProjectileType } from './projectileTypes';
-import { createProjectileMesh, disposeProjectileShared } from './projectileModels';
+import { createProjectileMesh, isSprite, disposeProjectileShared } from './projectileModels';
 import { CellType } from '../dungeon/types';
 
 export interface CombatTarget {
@@ -16,6 +16,7 @@ export interface ProjectileHitResult {
 interface Projectile {
   active: boolean;
   mesh: THREE.Mesh;
+  isSpriteMesh: boolean;
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   type: ProjectileType;
@@ -53,6 +54,7 @@ export class ProjectileManager {
       this.pool.push({
         active: false,
         mesh,
+        isSpriteMesh: isSprite(defaultType),
         position: new THREE.Vector3(),
         velocity: new THREE.Vector3(),
         type: defaultType,
@@ -81,19 +83,28 @@ export class ProjectileManager {
     p.position.copy(origin);
     p.velocity.set(direction.x, 0, direction.z).normalize().multiplyScalar(type.speed);
 
+    // Swap mesh if type changed between sprite ↔ sphere
+    const needsSprite = isSprite(type);
+    if (needsSprite !== p.isSpriteMesh) {
+      this.scene.remove(p.mesh);
+      p.mesh.onBeforeRender = () => {};
+      p.mesh = createProjectileMesh(type);
+      p.mesh.visible = false;
+      this.scene.add(p.mesh);
+      p.isSpriteMesh = needsSprite;
+    } else if (!needsSprite) {
+      // Sphere → swap material if color differs
+      const mat = p.mesh.material as THREE.MeshStandardMaterial;
+      if (mat.color.getHex() !== type.color) {
+        const newMesh = createProjectileMesh(type);
+        p.mesh.geometry = newMesh.geometry;
+        p.mesh.material = newMesh.material;
+      }
+    }
+
     p.mesh.visible = true;
     p.mesh.position.copy(p.position);
     p.mesh.scale.setScalar(type.scale);
-
-    // Swap material if color differs
-    const mat = p.mesh.material as THREE.MeshStandardMaterial;
-    if (mat.color.getHex() !== type.color) {
-      // createProjectileMesh returns cached material — just create a new mesh ref
-      const newMesh = createProjectileMesh(type);
-      p.mesh.geometry = newMesh.geometry;
-      p.mesh.material = newMesh.material;
-      p.mesh.scale.setScalar(type.scale);
-    }
   }
 
   spawnSpread(

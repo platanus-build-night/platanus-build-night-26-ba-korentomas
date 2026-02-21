@@ -1,13 +1,13 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { CellType } from '../dungeon/types';
-import { resolveMovement } from './collision';
+import { resolveMovement, pushAwayFromWalls } from './collision';
 import { cheats } from '../cheats/cheatState';
 
 const MOVE_SPEED = 5;
-const MOUSE_SENSITIVITY = 0.004;
+const MOUSE_SENSITIVITY = 0.005;
 const PITCH_LIMIT = (80 * Math.PI) / 180; // +-80 degrees
 const EYE_HEIGHT = 2.5;
-const PLAYER_RADIUS = 0.3;
+const PLAYER_RADIUS = 0.45;
 
 export class PlayerController {
   health = 100;
@@ -49,6 +49,7 @@ export class PlayerController {
       this.keys[e.code] = false;
     };
 
+    // Direct mouse application — no smoothing, like Three.js PointerLockControls
     this.onMouseMove = (e: MouseEvent) => {
       if (!document.pointerLockElement) return;
       this.yaw -= e.movementX * MOUSE_SENSITIVITY;
@@ -147,6 +148,13 @@ export class PlayerController {
         this.position.x = resolved.x;
         this.position.z = resolved.z;
       }
+    }
+
+    // Push player away from nearby walls to prevent camera clipping
+    if (!cheats.noclip) {
+      const pushed = pushAwayFromWalls(this.grid, this.position.x, this.position.z, PLAYER_RADIUS);
+      this.position.x = pushed.x;
+      this.position.z = pushed.z;
     }
 
     // Apply camera transform

@@ -65,6 +65,9 @@ export enum AudioEvent {
 
   // Boss
   BOSS_ROAR = 'BOSS_ROAR',
+
+  // Forge
+  FORGE_COMPLETE = 'FORGE_COMPLETE',
 }
 
 export interface SoundDef {
@@ -345,6 +348,13 @@ export const SOUND_MANIFEST: Record<AudioEvent, SoundDef> = {
   // ── Boss ─────────────────────────────────────────────────────────
   [AudioEvent.BOSS_ROAR]: {
     paths: ['/audio/wav/skeleton/24_skeleton_aggro.wav'],
+    volume: 0.8,
+    loop: false,
+  },
+
+  // ── Forge ────────────────────────────────────────────────────────
+  [AudioEvent.FORGE_COMPLETE]: {
+    paths: ['/audio/wav/ui/38_blueprint_found.wav'],
     volume: 0.8,
     loop: false,
   },

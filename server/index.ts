@@ -7,6 +7,7 @@ import { weaponsRouter } from './routes/weapons.js';
 import { enemiesRouter } from './routes/enemies.js';
 import { decorationsRouter } from './routes/decorations.js';
 import { faviconRouter } from './routes/favicon.js';
+import { galleryRouter } from './routes/gallery.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use('/api', weaponsRouter);
 app.use('/api', enemiesRouter);
 app.use('/api', decorationsRouter);
 app.use('/api', faviconRouter);
+app.use('/api', galleryRouter);
 
 initDb()
   .then(() => {
