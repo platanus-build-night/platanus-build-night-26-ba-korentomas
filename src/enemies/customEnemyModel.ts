@@ -31,7 +31,7 @@ export async function createCustomEnemyType(
     health: stats.health,
     speed: stats.speed,
     damage: stats.damage,
-    attackRange: 3.5,
+    attackRange: 2.8,
     attackCooldown: 1.0,
     points: stats.points,
     modelGenerator: factory,

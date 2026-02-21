@@ -264,7 +264,7 @@ export async function createGameLoop(
       const pos = player.getPosition();
       const spawnX = pos.x + player.getDirection().x * 3;
       const spawnZ = pos.z + player.getDirection().z * 3;
-      enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, -1);
+      enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, dungeonFloor.grid, -1);
       return `Spawned "${meta.name}" ahead of you!`;
     } catch (err) {
       return `Spawn failed: ${err}`;
@@ -533,13 +533,13 @@ export async function createGameLoop(
         const baseType = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
         const bossType = makeBossVersion(baseType);
         const bossSpawn = roomSpawns.find(s => s.isBoss) || roomSpawns[0];
-        enemies.spawnEnemiesInRoom(bossSpawn, 1, bossType, room.index);
+        enemies.spawnEnemiesInRoom(bossSpawn, 1, bossType, dungeonFloor.grid, room.index);
         // 2-3 regular enemies
         count = 2 + Math.floor(Math.random() * 2);
         const minionSpawns = roomSpawns.filter(s => !s.isBoss).slice(0, count);
         for (const sp of minionSpawns) {
           const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
-          enemies.spawnEnemiesInRoom(sp, 1, type, room.index);
+          enemies.spawnEnemiesInRoom(sp, 1, type, dungeonFloor.grid, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, 1 + minionSpawns.length);
       } else if (room.type === RoomType.BLUEPRINT) {
@@ -547,7 +547,7 @@ export async function createGameLoop(
         const actualCount = Math.min(count, roomSpawns.length);
         for (let i = 0; i < actualCount; i++) {
           const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
-          enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, room.index);
+          enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, dungeonFloor.grid, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, actualCount);
       } else if (room.type === RoomType.NORMAL) {
@@ -556,7 +556,7 @@ export async function createGameLoop(
         const actualCount = Math.min(count, roomSpawns.length);
         for (let i = 0; i < actualCount; i++) {
           const type = allEnemyTypes[Math.floor(Math.random() * allEnemyTypes.length)];
-          enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, room.index);
+          enemies.spawnEnemiesInRoom(roomSpawns[i], 1, type, dungeonFloor.grid, room.index);
         }
         roomTracker.registerEnemiesInRoom(room.index, actualCount);
       }
@@ -575,7 +575,7 @@ export async function createGameLoop(
         const stats = { health: 30, speed: 2, damage: 10, points: 100 };
         spriteEnemyPromises.push(
           createCustomEnemyType(queued.dataUrl, stats, queued.name).then(customType => {
-            enemies.spawnEnemiesInRoom({ x: cx, z: cz }, 1, customType, room.index);
+            enemies.spawnEnemiesInRoom({ x: cx, z: cz }, 1, customType, dungeonFloor.grid, room.index);
           }).catch(() => {})
         );
       }
@@ -796,7 +796,7 @@ export async function createGameLoop(
         const spawnZ = pos.z + dir.z * 4;
         const stats = { health: 30, speed: 2, damage: 10, points: 100 };
         createCustomEnemyType(dataUrl, stats, forgedItem.name).then(customType => {
-          enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, -1);
+          enemies.spawnEnemiesInRoom({ x: spawnX, z: spawnZ }, 1, customType, dungeonFloor.grid, -1);
         }).catch(() => {});
       } else if (forgedItem.category === 'decoration') {
         const dataUrl = arrayBufferToDataUrl(forgedItem.data, 'image/png');

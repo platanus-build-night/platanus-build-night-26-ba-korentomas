@@ -37,6 +37,16 @@ export class EnemyManager {
     this.scene = scene;
   }
 
+  /** Check if a position is on a walkable tile (FLOOR or DOOR). */
+  private isWalkable(grid: CellType[][], x: number, z: number): boolean {
+    const gx = Math.floor(x);
+    const gz = Math.floor(z);
+    if (gz < 0 || gz >= grid.length) return false;
+    if (gx < 0 || gx >= grid[gz].length) return false;
+    const cell = grid[gz][gx];
+    return cell === CellType.FLOOR || cell === CellType.DOOR;
+  }
+
   setOnEnemyKilled(cb: (roomIndex: number) => void): void {
     this.onEnemyKilledCb = cb;
   }
@@ -49,14 +59,24 @@ export class EnemyManager {
     roomCenter: { x: number; z: number },
     count: number,
     enemyType: EnemyType,
+    grid: CellType[][],
     roomIndex: number = -1,
   ): void {
     for (let i = 0; i < count; i++) {
-      // Spread enemies in a circle around the room center
-      const angle = (Math.PI * 2 * i) / count;
-      const radius = 2 + Math.random() * 2;
-      const x = roomCenter.x + Math.cos(angle) * radius;
-      const z = roomCenter.z + Math.sin(angle) * radius;
+      // Try circular offset, validate against grid, retry with smaller radius
+      let x = roomCenter.x;
+      let z = roomCenter.z;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+        const radius = Math.max(0.5, 2 + Math.random() * 2 - attempt * 0.4);
+        const tx = roomCenter.x + Math.cos(angle) * radius;
+        const tz = roomCenter.z + Math.sin(angle) * radius;
+        if (this.isWalkable(grid, tx, tz)) {
+          x = tx;
+          z = tz;
+          break;
+        }
+      }
 
       const model = enemyType.modelGenerator();
       model.position.set(x, 0, z);
@@ -122,6 +142,13 @@ export class EnemyManager {
         if (enemy.deathFade <= 0) {
           this.removeEnemy(i);
         }
+        continue;
+      }
+
+      // Kill enemies stuck in walls
+      if (!this.isWalkable(grid, enemy.position.x, enemy.position.z)) {
+        enemy.state = EnemyAIState.DEAD;
+        enemy.deathFade = 1;
         continue;
       }
 

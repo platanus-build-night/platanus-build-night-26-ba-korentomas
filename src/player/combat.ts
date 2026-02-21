@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 
 const ATTACK_COOLDOWN = 0.5;
-const ATTACK_RANGE = 2.5;
+const ATTACK_RANGE = 3.5;
 const ATTACK_CONE_COS = Math.cos((60 * Math.PI) / 180); // 60-degree half-angle
 const DAMAGE_PER_HIT = 15;
 
