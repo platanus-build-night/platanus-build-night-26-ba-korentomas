@@ -3,15 +3,15 @@ import {
   DrawingCategory,
   DrawingResult,
   DEFAULT_CATEGORIES,
-  WEAPON_TYPES,
-  WeaponTypeOption,
+  type SubtypeOption,
+  getSubtypesForCategory,
 } from './drawingTypes';
 import { createProjectilePad, ProjectilePad } from './projectilePad';
 
 let overlay: HTMLDivElement | null = null;
 let sketchPad: SketchPad | null = null;
 let selectedCategoryId = '';
-let selectedWeaponType = 'sword';
+let selectedSubtype = 'sword';
 let isVisible = false;
 let categoryButtons: HTMLButtonElement[] = [];
 let nameInput: HTMLInputElement | null = null;
@@ -19,8 +19,8 @@ let promptInput: HTMLTextAreaElement | null = null;
 let pendingResolve: ((result: DrawingResult | null) => void) | null = null;
 let forgeOverlayEl: HTMLDivElement | null = null;
 let genBtn: HTMLButtonElement | null = null;
-let weaponTypeContainer: HTMLDivElement | null = null;
-let weaponTypeButtons: HTMLButtonElement[] = [];
+let subtypeContainer: HTMLDivElement | null = null;
+let subtypeButtons: HTMLButtonElement[] = [];
 let splatCanvases: HTMLCanvasElement[] = [];
 let selectedSplatIndex = 0;
 let projectilePad: ProjectilePad | null = null;
@@ -297,11 +297,11 @@ function drawCategoryButton(
   ctx.fillText(label, w / 2, h / 2 + 16);
 }
 
-// --- Weapon type button rendering ---
+// --- Subtype button rendering ---
 
-function drawWeaponTypeButton(
+function drawSubtypeButton(
   canvas: HTMLCanvasElement,
-  wt: WeaponTypeOption,
+  wt: SubtypeOption,
   selected: boolean
 ): void {
   const ctx = canvas.getContext('2d')!;
@@ -395,22 +395,70 @@ function getPromptPlaceholder(categoryId: string): string {
   }
 }
 
-// --- Weapon type grid ---
+// --- Subtype bar ---
 
-// buildWeaponTypeGrid is now inline in buildOverlay (horizontal bar above parchment)
+/** Rebuild the subtype horizontal bar for the current category */
+function rebuildSubtypeBar(): void {
+  if (!subtypeContainer) return;
+  // Clear old buttons
+  while (subtypeContainer.firstChild) subtypeContainer.removeChild(subtypeContainer.firstChild);
+  subtypeButtons = [];
 
-function updateWeaponTypeButtons(): void {
-  for (let i = 0; i < WEAPON_TYPES.length; i++) {
-    const wt = WEAPON_TYPES[i];
-    const btn = weaponTypeButtons[i];
+  const subtypes = getSubtypesForCategory(selectedCategoryId);
+  if (subtypes.length === 0) {
+    subtypeContainer.style.display = 'none';
+    return;
+  }
+
+  // Default to first subtype if current selection doesn't belong to this category
+  if (!subtypes.some(s => s.id === selectedSubtype)) {
+    selectedSubtype = subtypes[0].id;
+  }
+
+  for (const st of subtypes) {
+    const btn = document.createElement('button');
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      padding: '0',
+      cursor: 'pointer',
+      display: 'block',
+    });
+    const btnCanvas = document.createElement('canvas');
+    btnCanvas.width = 80;
+    btnCanvas.height = 44;
+    Object.assign(btnCanvas.style, { width: '80px', height: 'auto' });
+    btn.appendChild(btnCanvas);
+    drawSubtypeButton(btnCanvas, st, st.id === selectedSubtype);
+
+    btn.addEventListener('click', () => {
+      selectedSubtype = st.id;
+      updateSubtypeButtons();
+      updateProjectilePadVisibility();
+    });
+
+    subtypeButtons.push(btn);
+    subtypeContainer.appendChild(btn);
+  }
+
+  subtypeContainer.style.display = 'flex';
+}
+
+function updateSubtypeButtons(): void {
+  const subtypes = getSubtypesForCategory(selectedCategoryId);
+  for (let i = 0; i < subtypes.length; i++) {
+    const st = subtypes[i];
+    const btn = subtypeButtons[i];
+    if (!btn) continue;
     const canvas = btn.querySelector('canvas')!;
-    drawWeaponTypeButton(canvas, wt, wt.id === selectedWeaponType);
+    drawSubtypeButton(canvas, st, st.id === selectedSubtype);
   }
 }
 
 function updateProjectilePadVisibility(): void {
-  const selectedWt = WEAPON_TYPES.find(w => w.id === selectedWeaponType);
-  const shouldShow = selectedCategoryId === 'weapon' && selectedWt?.hasProjectile === true;
+  const subtypes = getSubtypesForCategory(selectedCategoryId);
+  const selectedSt = subtypes.find(s => s.id === selectedSubtype);
+  const shouldShow = selectedCategoryId === 'weapon' && selectedSt?.hasProjectile === true;
 
   if (shouldShow) {
     projectilePad?.show();
@@ -459,9 +507,9 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     gap: '0',
   });
 
-  // Weapon type bar (horizontal, above parchment — hidden by default)
-  weaponTypeContainer = document.createElement('div');
-  Object.assign(weaponTypeContainer.style, {
+  // Subtype bar (horizontal, above parchment — populated per category)
+  subtypeContainer = document.createElement('div');
+  Object.assign(subtypeContainer.style, {
     display: 'none',
     flexDirection: 'row',
     gap: '4px',
@@ -470,35 +518,8 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     justifyContent: 'center',
     flexWrap: 'wrap',
   });
-
-  weaponTypeButtons = [];
-  for (const wt of WEAPON_TYPES) {
-    const btn = document.createElement('button');
-    Object.assign(btn.style, {
-      background: 'none',
-      border: 'none',
-      padding: '0',
-      cursor: 'pointer',
-      display: 'block',
-    });
-    const btnCanvas = document.createElement('canvas');
-    btnCanvas.width = 80;
-    btnCanvas.height = 44;
-    Object.assign(btnCanvas.style, { width: '80px', height: 'auto' });
-    btn.appendChild(btnCanvas);
-    drawWeaponTypeButton(btnCanvas, wt, wt.id === selectedWeaponType);
-
-    btn.addEventListener('click', () => {
-      selectedWeaponType = wt.id;
-      updateWeaponTypeButtons();
-      updateProjectilePadVisibility();
-    });
-
-    weaponTypeButtons.push(btn);
-    weaponTypeContainer.appendChild(btn);
-  }
-  leftColumn.appendChild(weaponTypeContainer);
-  updateWeaponTypeVisibility();
+  leftColumn.appendChild(subtypeContainer);
+  rebuildSubtypeBar();
 
   // --- Parchment + canvas ---
   const parchmentWrap = document.createElement('div');
@@ -568,7 +589,7 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     btn.addEventListener('click', () => {
       selectedCategoryId = cat.id;
       updateCategoryButtons(categories);
-      updateWeaponTypeVisibility();
+      rebuildSubtypeBar();
       updateProjectilePadVisibility();
       updatePromptPlaceholder();
     });
@@ -745,10 +766,7 @@ function updateCategoryButtons(categories: DrawingCategory[]): void {
   }
 }
 
-function updateWeaponTypeVisibility(): void {
-  if (!weaponTypeContainer) return;
-  weaponTypeContainer.style.display = selectedCategoryId === 'weapon' ? 'flex' : 'none';
-}
+// updateWeaponTypeVisibility removed — rebuildSubtypeBar handles all categories
 
 function updatePromptPlaceholder(): void {
   if (!promptInput) return;
@@ -765,7 +783,7 @@ function handleGenerate(): void {
     name: nameInput?.value?.trim() || '',
     width: sketchPad.canvas.width,
     height: sketchPad.canvas.height,
-    weaponType: selectedCategoryId === 'weapon' ? selectedWeaponType : undefined,
+    weaponType: selectedSubtype,
     projectileImageData: (projectilePad && projectilePadVisible) ? projectilePad.toDataURL() : undefined,
     projectileDominantColor: (projectilePad && projectilePadVisible) ? projectilePad.getDominantColor() : undefined,
   };
@@ -812,9 +830,9 @@ export function hideDrawingOverlay(): void {
   // Cleanup splat palette
   splatCanvases = [];
 
-  // Cleanup weapon type buttons
-  weaponTypeButtons = [];
-  weaponTypeContainer = null;
+  // Cleanup subtype buttons
+  subtypeButtons = [];
+  subtypeContainer = null;
 
   sketchPad?.destroy();
   sketchPad = null;
