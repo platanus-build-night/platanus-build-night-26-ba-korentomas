@@ -1,0 +1,27 @@
+name: Deploy Backend to Hetzner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Hetzner
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 178.156.211.116
+          username: root
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /opt/dungeonslopper
+            git pull origin main
+            npm install --production
+            pm2 restart dungeonslopper || pm2 start npx --name dungeonslopper -- tsx server/index.ts
+            pm2 save
