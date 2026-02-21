@@ -441,15 +441,17 @@ export function showRunSummary3D(
         // Hover detection
         raycaster.setFromCamera(pointer, camera);
 
+        const hitAreas: THREE.Object3D[] = [];
+        if (riseButton) hitAreas.push(riseButton.hitArea);
+        if (retreatButton) hitAreas.push(retreatButton.hitArea);
+
+        const intersects = raycaster.intersectObjects(hitAreas, false);
         let newHovered: 'rise' | 'retreat' | null = null;
 
-        if (riseButton) {
-          const hits = raycaster.intersectObject(riseButton.hitArea);
-          if (hits.length > 0) newHovered = 'rise';
-        }
-        if (!newHovered && retreatButton) {
-          const hits = raycaster.intersectObject(retreatButton.hitArea);
-          if (hits.length > 0) newHovered = 'retreat';
+        if (intersects.length > 0) {
+          const hit = intersects[0].object;
+          if (riseButton && hit === riseButton.hitArea) newHovered = 'rise';
+          else if (retreatButton && hit === retreatButton.hitArea) newHovered = 'retreat';
         }
 
         if (newHovered !== hoveredButton) {
