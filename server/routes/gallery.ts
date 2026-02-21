@@ -30,11 +30,11 @@ galleryRouter.get('/gallery', async (req: Request, res: Response) => {
     const items: GalleryItem[] = [];
     const searchFilter = search ? `%${search}%` : null;
 
-    // Weapons — thumbnail from sketch_png (base64 text stored directly)
+    // Weapons — thumbnail from sketch_png, output from output_png (Stability AI result)
     if (!category || category === 'weapon') {
       const weaponQuery = searchFilter
-        ? 'SELECT id, name, sketch_png, created_at FROM weapons WHERE name ILIKE $1 ORDER BY created_at DESC'
-        : 'SELECT id, name, sketch_png, created_at FROM weapons ORDER BY created_at DESC';
+        ? 'SELECT id, name, sketch_png, output_png, created_at FROM weapons WHERE name ILIKE $1 ORDER BY created_at DESC'
+        : 'SELECT id, name, sketch_png, output_png, created_at FROM weapons ORDER BY created_at DESC';
       const weaponParams = searchFilter ? [searchFilter] : [];
       const weaponResult = await pool.query(weaponQuery, weaponParams);
 
@@ -42,12 +42,15 @@ galleryRouter.get('/gallery', async (req: Request, res: Response) => {
         const sketchUrl = row.sketch_png
           ? `data:image/png;base64,${row.sketch_png}`
           : null;
+        const outputUrl = row.output_png
+          ? `data:image/png;base64,${Buffer.from(row.output_png).toString('base64')}`
+          : sketchUrl;
         items.push({
           id: row.id,
           name: row.name,
           category: 'weapon',
           sketch: sketchUrl,
-          output: sketchUrl, // weapons don't store a separate rendered image
+          output: outputUrl,
           created_at: row.created_at,
         });
       }

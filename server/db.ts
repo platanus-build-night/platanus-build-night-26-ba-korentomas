@@ -54,6 +54,11 @@ export async function initDb() {
     ALTER TABLE decorations ADD COLUMN IF NOT EXISTS sprite_png BYTEA;
   `);
 
+  // Add output_png column to weapons for storing the Stability AI intermediate image
+  await pool.query(`
+    ALTER TABLE weapons ADD COLUMN IF NOT EXISTS output_png BYTEA;
+  `);
+
   console.log('Database tables initialized');
 }
 

@@ -210,8 +210,8 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
 
     // Store weapon in DB (enemies/decorations already handled above)
     const result = await pool.query(
-      'INSERT INTO weapons (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
-      [name || 'Unnamed Weapon', base64Data, glbBuffer]
+      'INSERT INTO weapons (name, sketch_png, output_png, model_glb) VALUES ($1, $2, $3, $4) RETURNING id, name',
+      [name || 'Unnamed Weapon', base64Data, renderedImage, glbBuffer]
     );
     const itemId = result.rows[0].id;
     const itemName = result.rows[0].name;

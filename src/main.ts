@@ -12,8 +12,8 @@ import { AudioManager, MusicPlayer, SfxPlayer, AudioEvent } from './audio';
 import { initCheatConsole } from './cheats/cheatConsole';
 import { registerDefaultCheats } from './cheats/defaultCheats';
 import { showGalleryOverlay } from './ui/galleryOverlay';
-import { showNameEntry } from './ui/nameEntry';
-import { showRunSummary, type RunStats } from './ui/runSummary';
+import { showNameEntry3D } from './ui/nameEntry3d';
+import { showRunSummary3D, type RunStats } from './ui/runSummary3d';
 
 async function init() {
   const { scene, camera, renderer, ambientLight, fog } = createScene();
@@ -149,7 +149,7 @@ async function init() {
     musicPlayer.stop();
 
     // Show name entry
-    playerName = await showNameEntry();
+    playerName = await showNameEntry3D(camera);
 
     await fadeToBlack(fadeOverlay, 1000);
 
@@ -232,7 +232,7 @@ async function init() {
       creationsUsed: runStats.creationsUsed,
     };
 
-    const result = await showRunSummary(summaryStats);
+    const result = await showRunSummary3D(summaryStats, camera);
 
     if (gameLoop) {
       gameLoop.dispose();
@@ -240,7 +240,7 @@ async function init() {
     }
 
     if (result.action === 'play_again') {
-      playerName = await showNameEntry();
+      playerName = await showNameEntry3D(camera);
       await startGameDirect();
     } else {
       await returnToMenu();

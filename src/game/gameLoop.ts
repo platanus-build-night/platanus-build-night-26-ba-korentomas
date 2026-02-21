@@ -32,7 +32,8 @@ import { communityCache } from '../community/communityCache';
 import { setOnCloseCallback, isConsoleOpen } from '../cheats/cheatConsole';
 import { registerGameCheats } from '../cheats/gameCheats';
 import { BreakableSystem } from '../decorations/breakableSystem';
-import { createPauseMenu } from '../ui/pauseMenu';
+import { createPauseMenu3D } from '../ui/pauseMenu3d';
+import { showLoadingText3D, hideLoadingText3D } from '../ui/loadingScreen3d';
 
 import type { EnemyType } from '../enemies/enemyTypes';
 
@@ -120,38 +121,6 @@ export async function createGameLoop(
   const creationsUsed: CreationUsed[] = [];
   let onGameOverCb: (() => void) | null = null;
 
-  // Loading screen overlay
-  let loadingTextEl: HTMLDivElement | null = null;
-
-  function showLoadingText(message: string): void {
-    if (!loadingTextEl) {
-      loadingTextEl = document.createElement('div');
-      Object.assign(loadingTextEl.style, {
-        position: 'fixed',
-        inset: '0',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: '25',
-        pointerEvents: 'none',
-        fontFamily: '"Courier New", Courier, monospace',
-        fontSize: '24px',
-        color: '#daa520',
-        textShadow: '0 0 10px rgba(218, 165, 32, 0.5)',
-        letterSpacing: '2px',
-      });
-      document.body.appendChild(loadingTextEl);
-    }
-    loadingTextEl.textContent = message;
-    loadingTextEl.style.display = 'flex';
-  }
-
-  function hideLoadingText(): void {
-    if (loadingTextEl) {
-      loadingTextEl.style.display = 'none';
-    }
-  }
-
   // Footstep tracking
   let footstepDistance = 0;
   const FOOTSTEP_INTERVAL = 2.5;
@@ -180,7 +149,7 @@ export async function createGameLoop(
   const combat = new SwordCombat();
   const enemies = new EnemyManager(scene);
   const hud = new HUD();
-  const pauseMenu = createPauseMenu();
+  const pauseMenu = await createPauseMenu3D(camera);
   const swordModel = new SwordModel(camera);
   let dualSwordModel: DualSwordModel | null = null;
   let activeWeaponModel: 'sword' | 'dual' = 'sword';
@@ -588,9 +557,9 @@ export async function createGameLoop(
   }
 
   // Load first floor
-  showLoadingText('Entering the Dungeon...');
+  await showLoadingText3D(camera, 'Entering the Dungeon...');
   await loadFloor(currentFloorNumber);
-  hideLoadingText();
+  hideLoadingText3D(camera);
   player.requestPointerLock();
   hud.show();
 
@@ -604,10 +573,10 @@ export async function createGameLoop(
     sfxPlayer?.play(AudioEvent.STINGER_FLOOR_DESCENT);
 
     await fadeToBlack(fadeOverlay, 800);
-    showLoadingText(`Descending to Floor ${currentFloorNumber + 1}...`);
+    await showLoadingText3D(camera, `Descending to Floor ${currentFloorNumber + 1}...`);
     currentFloorNumber++;
     await loadFloor(currentFloorNumber);
-    hideLoadingText();
+    hideLoadingText3D(camera);
 
     // Footstep on arrival at the new floor
     sfxPlayer?.play(AudioEvent.FOOTSTEP);
@@ -947,10 +916,7 @@ export async function createGameLoop(
       scene.remove(floorResult.group);
       disposeFloorMesh(floorResult);
     }
-    if (loadingTextEl) {
-      loadingTextEl.remove();
-      loadingTextEl = null;
-    }
+    hideLoadingText3D(camera);
     if (musicPlayer) {
       musicPlayer.stop();
     }
