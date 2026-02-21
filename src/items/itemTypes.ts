@@ -4,6 +4,7 @@ export enum ItemType {
   HEALTH_POTION = 'HEALTH_POTION',
   SCORE_GEM = 'SCORE_GEM',
   BLUEPRINT = 'BLUEPRINT',
+  WEAPON_CRATE = 'WEAPON_CRATE',
 }
 
 export interface ItemDef {
@@ -19,6 +20,7 @@ let sharedItemGeo: {
   potion: THREE.SphereGeometry;
   gem: THREE.OctahedronGeometry;
   blueprint: THREE.BoxGeometry;
+  crate: THREE.BoxGeometry;
 } | null = null;
 
 // Lazy singleton for shared item materials
@@ -26,6 +28,7 @@ let sharedItemMat: {
   potion: THREE.MeshStandardMaterial;
   gem: THREE.MeshStandardMaterial;
   blueprint: THREE.MeshStandardMaterial;
+  crate: THREE.MeshStandardMaterial;
 } | null = null;
 
 function ensureItemShared(): void {
@@ -34,6 +37,7 @@ function ensureItemShared(): void {
       potion: new THREE.SphereGeometry(0.15, 8, 6),
       gem: new THREE.OctahedronGeometry(0.12, 0),
       blueprint: new THREE.BoxGeometry(0.3, 0.4, 0.02),
+      crate: new THREE.BoxGeometry(0.35, 0.35, 0.35),
     };
   }
   if (!sharedItemMat) {
@@ -55,6 +59,13 @@ function ensureItemShared(): void {
         emissive: 0x2244aa,
         emissiveIntensity: 0.6,
         roughness: 0.5,
+      }),
+      crate: new THREE.MeshStandardMaterial({
+        color: 0xdaa520,
+        emissive: 0xcc7700,
+        emissiveIntensity: 0.6,
+        roughness: 0.4,
+        metalness: 0.3,
       }),
     };
   }
@@ -100,6 +111,20 @@ export const ITEM_DEFS: Record<ItemType, ItemDef> = {
       return group;
     },
   },
+  [ItemType.WEAPON_CRATE]: {
+    type: ItemType.WEAPON_CRATE,
+    name: 'Weapon Crate',
+    points: 0,
+    healAmount: 0,
+    modelGenerator: (): THREE.Group => {
+      ensureItemShared();
+      const group = new THREE.Group();
+      // Glowing crate with golden emissive
+      const mesh = new THREE.Mesh(sharedItemGeo!.crate, sharedItemMat!.crate);
+      group.add(mesh);
+      return group;
+    },
+  },
 };
 
 export function disposeItemShared(): void {
@@ -107,12 +132,14 @@ export function disposeItemShared(): void {
     sharedItemGeo.potion.dispose();
     sharedItemGeo.gem.dispose();
     sharedItemGeo.blueprint.dispose();
+    sharedItemGeo.crate.dispose();
     sharedItemGeo = null;
   }
   if (sharedItemMat) {
     sharedItemMat.potion.dispose();
     sharedItemMat.gem.dispose();
     sharedItemMat.blueprint.dispose();
+    sharedItemMat.crate.dispose();
     sharedItemMat = null;
   }
 }

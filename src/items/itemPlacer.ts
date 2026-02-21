@@ -31,6 +31,12 @@ export function spawnItems(floor: DungeonFloor, group: THREE.Group): PlacedItem[
     placeItem(ItemType.SCORE_GEM, pickRandomRoom(eligibleRooms), group, items);
   }
 
+  // 1-2 weapon crates per floor (community weapons)
+  const crateCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < crateCount; i++) {
+    placeItem(ItemType.WEAPON_CRATE, pickRandomRoom(eligibleRooms), group, items);
+  }
+
   return items;
 }
 

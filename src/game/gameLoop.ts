@@ -18,7 +18,7 @@ import { disposeDecorationShared } from '../decorations/decorationModels';
 import { spawnPaintings, disposePaintings, type PlacedPainting } from '../decorations/paintingPlacer';
 import { disposePaintingShared } from '../decorations/paintingModel';
 import { createCustomEnemyType } from '../enemies/customEnemyModel';
-import { spawnItems, spawnBlueprintAtPosition } from '../items/itemPlacer';
+import { spawnItems, spawnBlueprintAtPosition, type PlacedItem } from '../items/itemPlacer';
 import { ItemPickupSystem } from '../items/itemPickup';
 import { ItemType, ITEM_DEFS, disposeItemShared } from '../items/itemTypes';
 import { RoomTracker } from '../dungeon/roomTracker';
@@ -118,6 +118,18 @@ export async function createGameLoop(
   const customEnemyQueue: QueuedSprite[] = [];
   const customPaintingQueue: QueuedSprite[] = [];
   let bossEnemy: { id: number; health: number; maxHealth: number; name: string } | null = null;
+
+  // Weapon inventory
+  interface InventoryWeapon {
+    name: string;
+    id: number | null;
+    glbData: ArrayBuffer | null; // null = default sword
+    type: 'sword' | 'dual' | 'staff' | 'bow';
+  }
+  const weaponInventory: InventoryWeapon[] = [
+    { name: 'Default Sword', id: null, glbData: null, type: 'sword' },
+  ];
+  let currentWeaponIndex = 0;
 
   // Run stats tracking
   let enemiesKilledCount = 0;
@@ -279,6 +291,38 @@ export async function createGameLoop(
     }
   }
 
+  async function switchToWeapon(weapon: InventoryWeapon) {
+    if (weapon.type === 'dual' && weapon.glbData) {
+      swordModel.setVisible(false);
+      if (!dualSwordModel) {
+        dualSwordModel = new DualSwordModel(camera);
+      }
+      await dualSwordModel.loadGLB(weapon.glbData);
+      dualSwordModel.setVisible(true);
+      dualSwordModel.currentWeaponName = weapon.name;
+      dualSwordModel.currentWeaponId = weapon.id;
+      activeWeaponModel = 'dual';
+      equippedWeapon = 'melee';
+    } else if (weapon.glbData) {
+      if (dualSwordModel) dualSwordModel.setVisible(false);
+      swordModel.setVisible(true);
+      await swordModel.loadGLB(weapon.glbData);
+      swordModel.currentWeaponName = weapon.name;
+      swordModel.currentWeaponId = weapon.id;
+      activeWeaponModel = 'sword';
+      equippedWeapon = (weapon.type === 'staff' || weapon.type === 'bow') ? 'ranged' : 'melee';
+    } else {
+      // Default sword
+      if (dualSwordModel) dualSwordModel.setVisible(false);
+      swordModel.setVisible(true);
+      swordModel.loadFallback();
+      swordModel.currentWeaponName = 'Default Sword';
+      swordModel.currentWeaponId = null;
+      activeWeaponModel = 'sword';
+      equippedWeapon = 'melee';
+    }
+  }
+
   // Click to attack, or re-acquire pointer lock if lost
   const onMouseDown = (e: MouseEvent) => {
     if (e.button !== 0) return;
@@ -305,6 +349,41 @@ export async function createGameLoop(
     }
     if (e.code === 'Digit1') equippedWeapon = 'melee';
     if (e.code === 'Digit2') equippedWeapon = 'ranged';
+    if (e.code === 'KeyF' && document.pointerLockElement && !player.isDead) {
+      if (weaponInventory.length > 1) {
+        currentWeaponIndex = (currentWeaponIndex + 1) % weaponInventory.length;
+        const weapon = weaponInventory[currentWeaponIndex];
+        switchToWeapon(weapon);
+      }
+    }
+    if (e.code === 'KeyG' && document.pointerLockElement && !player.isDead) {
+      if (weaponInventory.length > 1 && currentWeaponIndex > 0) {
+        // Drop current weapon — spawn a crate at player position
+        const dropped = weaponInventory.splice(currentWeaponIndex, 1)[0];
+        currentWeaponIndex = Math.min(currentWeaponIndex, weaponInventory.length - 1);
+        const weapon = weaponInventory[currentWeaponIndex];
+        switchToWeapon(weapon);
+
+        // Drop a visual crate at player position
+        if (floorResult) {
+          const pos = player.getPosition();
+          const crateDef = ITEM_DEFS[ItemType.WEAPON_CRATE];
+          const crateModel = crateDef.modelGenerator();
+          crateModel.position.set(pos.x, 0.5, pos.z);
+          floorResult.group.add(crateModel);
+          // Store the dropped weapon data on the item for re-pickup
+          const droppedItem: PlacedItem = {
+            def: crateDef,
+            model: crateModel,
+            position: new THREE.Vector3(pos.x, 0, pos.z),
+            collected: false,
+          };
+          (droppedItem as unknown as Record<string, unknown>)._weaponData = dropped;
+          itemPickup.addItem(droppedItem);
+        }
+        sfxPlayer?.play(AudioEvent.ITEM_PICKUP);
+      }
+    }
   };
   document.addEventListener('keydown', onKeyDown);
 
@@ -375,8 +454,8 @@ export async function createGameLoop(
       const queued = customPaintingQueue.shift()!;
       paintingUrls.push(queued.dataUrl);
     }
-    // Community decoration sprites on floors 4+
-    if (floorNum >= 4) {
+    // Community decoration sprites on all floors
+    if (floorNum >= 1) {
       communityCache.getRandomDecorationSprite().then(sprite => {
         if (sprite) {
           spawnPaintings(dungeonFloor, [sprite.dataUrl], floorResult!.group).then(placed => {
@@ -673,6 +752,17 @@ export async function createGameLoop(
           swordModel.currentWeaponId = forgedItem.id;
         }
 
+        // Add forged weapon to inventory
+        const forgedWeapon: InventoryWeapon = {
+          name: forgedItem.name,
+          id: forgedItem.id,
+          glbData: forgedItem.data,
+          type: forgedItem.weaponType === 'dual-daggers' ? 'dual' :
+            (forgedItem.weaponType === 'staff' || forgedItem.weaponType === 'bow') ? forgedItem.weaponType as 'staff' | 'bow' : 'sword',
+        };
+        weaponInventory.push(forgedWeapon);
+        currentWeaponIndex = weaponInventory.length - 1;
+
         // Staff or bow → ranged mode with custom projectile
         if (forgedItem.weaponType === 'staff' || forgedItem.weaponType === 'bow') {
           equippedWeapon = 'ranged';
@@ -921,6 +1011,33 @@ export async function createGameLoop(
         player.addScore(item.def.points);
         sfxPlayer?.play(AudioEvent.BLUEPRINT_FOUND);
         handleBlueprintPickup();
+      } else if (item.def.type === ItemType.WEAPON_CRATE) {
+        sfxPlayer?.play(AudioEvent.ITEM_PICKUP);
+
+        // Check if this is a dropped weapon with stored data
+        const weaponData = (item as unknown as Record<string, unknown>)._weaponData as InventoryWeapon | undefined;
+        if (weaponData) {
+          weaponInventory.push(weaponData);
+          // Auto-switch to picked up weapon
+          currentWeaponIndex = weaponInventory.length - 1;
+          switchToWeapon(weaponData);
+        } else {
+          // Load random community weapon
+          communityCache.getRandomWeaponGLB().then(async (result) => {
+            if (result) {
+              const newWeapon: InventoryWeapon = {
+                name: result.name,
+                id: null,
+                glbData: result.glb,
+                type: 'sword', // community weapons default to sword type
+              };
+              weaponInventory.push(newWeapon);
+              // Auto-switch to new weapon
+              currentWeaponIndex = weaponInventory.length - 1;
+              await switchToWeapon(newWeapon);
+            }
+          }).catch(() => {});
+        }
       }
     }
 
