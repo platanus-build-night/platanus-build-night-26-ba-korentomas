@@ -102,6 +102,8 @@ export async function createGameLoop(
   let transitioning = false;
   let damageFlash = 0;
   let cameraShake = 0;
+  let lowHealthActive = false;
+  let heartbeatTimer = 0;
   let decorations: THREE.Group[] = [];
   let paintings: PlacedPainting[] = [];
   let dungeonLights: DungeonLight[] = [];
@@ -153,12 +155,12 @@ export async function createGameLoop(
 
   // Ambient + fog for dungeon atmosphere
   ambientLight.color.setHex(0x1a1a2e);
-  ambientLight.intensity = 0.5;
+  ambientLight.intensity = 0.55;
   const menuFogDensity = fog.density;
-  fog.density = 0.015;
+  fog.density = 0.013;
 
   // Player flashlight — wide SpotLight cone (Slenderman style)
-  const playerTorch = new THREE.SpotLight(0xff9944, 8, 30, Math.PI / 3, 0.4, 1.2);
+  const playerTorch = new THREE.SpotLight(0xff9944, 9, 30, Math.PI / 3, 0.4, 1.2);
   playerTorch.position.set(0, 0, 0);
   const torchTarget = new THREE.Object3D();
   torchTarget.position.set(0, -0.5, -5);
@@ -1071,6 +1073,33 @@ export async function createGameLoop(
       cameraShake = Math.max(0, cameraShake - delta * 3);
     }
 
+    // Low health warning — persistent red vignette + heartbeat SFX
+    const isLowHealth = player.health > 0 && player.health <= 50;
+    if (isLowHealth && !lowHealthActive) {
+      lowHealthActive = true;
+      heartbeatTimer = 0;
+      sfxPlayer?.play(AudioEvent.PLAYER_HURT);
+    } else if (!isLowHealth && lowHealthActive) {
+      lowHealthActive = false;
+    }
+    if (lowHealthActive) {
+      heartbeatTimer += delta;
+      if (heartbeatTimer >= 2.0) {
+        heartbeatTimer -= 2.0;
+        sfxPlayer?.play(AudioEvent.HEARTBEAT);
+      }
+    }
+
+    // Combine damage flash with persistent low-health vignette
+    let effectiveDamageFlash = damageFlash;
+    if (lowHealthActive) {
+      // Pulsing red vignette that intensifies as health drops
+      const healthRatio = player.health / 50; // 1.0 at 50hp, 0.0 at 0hp
+      const pulseBase = 0.15 + (1 - healthRatio) * 0.25; // 0.15-0.40
+      const pulse = pulseBase + Math.sin(heartbeatTimer * Math.PI) * 0.08;
+      effectiveDamageFlash = Math.max(effectiveDamageFlash, pulse);
+    }
+
     // Update HUD
     const hudState: HUDState = {
       health: player.health,
@@ -1079,7 +1108,7 @@ export async function createGameLoop(
       floor: currentFloorNumber,
       isAttacking: combat.isAttacking(),
       attackProgress: combat.getAttackProgress(),
-      damageFlash,
+      damageFlash: effectiveDamageFlash,
       showBoss: bossEnemy != null,
       bossName: bossEnemy?.name,
       bossHealth: bossEnemy?.health,

@@ -11,6 +11,7 @@ import {
   createOverlayText,
   createOverlayButton,
   createOverlayBackdrop,
+  createOverlayLight,
   disposeOverlayObjects,
   type ButtonResult,
 } from './overlay3d';
@@ -215,6 +216,10 @@ export function showRunSummary3D(
     // ---- Backdrop (dark red tint) ----
     const backdrop = createOverlayBackdrop(0.92, 0x050000);
     camera.add(backdrop);
+
+    // UI light for camera-attached MeshStandardMaterial
+    const uiLight = createOverlayLight();
+    camera.add(uiLight);
     overlayObjects.push({
       mesh: backdrop,
       material: backdrop.material as THREE.Material,
@@ -486,9 +491,11 @@ export function showRunSummary3D(
       // Dispose overlay objects
       disposeOverlayObjects(overlayObjects);
 
-      // Remove container
+      // Remove container + light
       camera.remove(container);
       camera.remove(backdrop);
+      camera.remove(uiLight);
+      uiLight.dispose();
     }
   });
 }

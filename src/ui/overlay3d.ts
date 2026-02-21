@@ -177,6 +177,24 @@ export async function createOverlayButton(
 }
 
 /* ------------------------------------------------------------------ */
+/*  UI Light                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Create a PointLight for camera-attached UI meshes.
+ *
+ * MeshStandardMaterial needs light to show its diffuse color. Scene
+ * lights don't reach camera-space meshes at z=-7, so we attach a
+ * dedicated PointLight to the camera. Position it at the UI plane
+ * so it illuminates text and frames evenly.
+ */
+export function createOverlayLight(): THREE.PointLight {
+  const light = new THREE.PointLight(0xffeedd, 2.5, 20);
+  light.position.set(0, 0, -5);
+  return light;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Dispose helper                                                     */
 /* ------------------------------------------------------------------ */
 

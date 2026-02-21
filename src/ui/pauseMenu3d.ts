@@ -11,6 +11,7 @@ import {
   createOverlayBackdrop,
   createOverlayText,
   createOverlayButton,
+  createOverlayLight,
   disposeOverlayObjects,
   type TextMeshResult,
   type ButtonResult,
@@ -61,6 +62,9 @@ export async function createPauseMenu3D(
 
   // Backdrop
   const backdrop = createOverlayBackdrop(0.7);
+
+  // UI light for camera-attached MeshStandardMaterial
+  const uiLight = createOverlayLight();
 
   // Title: "PAUSED"
   const titleResult: TextMeshResult = await createOverlayText('PAUSED', {
@@ -200,6 +204,7 @@ export async function createPauseMenu3D(
 
   function addMeshesToCamera() {
     camera.add(backdrop);
+    camera.add(uiLight);
     camera.add(titleResult.mesh);
     camera.add(resumeBtn.mesh);
     camera.add(restartBtn.mesh);
@@ -209,6 +214,7 @@ export async function createPauseMenu3D(
 
   function removeMeshesFromCamera() {
     camera.remove(backdrop);
+    camera.remove(uiLight);
     camera.remove(titleResult.mesh);
     camera.remove(resumeBtn.mesh);
     camera.remove(restartBtn.mesh);
@@ -256,9 +262,10 @@ export async function createPauseMenu3D(
     disposed = true;
     hide();
 
-    // Dispose backdrop
+    // Dispose backdrop + light
     (backdrop.geometry as THREE.BufferGeometry).dispose();
     (backdrop.material as THREE.Material).dispose();
+    uiLight.dispose();
 
     // Dispose text + buttons
     disposeOverlayObjects([

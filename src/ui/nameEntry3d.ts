@@ -13,6 +13,7 @@ import {
   createOverlayText,
   createOverlayButton,
   createOverlayBackdrop,
+  createOverlayLight,
   disposeOverlayObjects,
   type ButtonResult,
 } from './overlay3d';
@@ -53,6 +54,10 @@ export function showNameEntry3D(
     const backdrop = createOverlayBackdrop(0.9);
     camera.add(backdrop);
     overlayObjects.push({ mesh: backdrop, material: backdrop.material as THREE.Material, geometry: backdrop.geometry });
+
+    // ---- UI Light — illuminates MeshStandardMaterial at z=-7 ----
+    const uiLight = createOverlayLight();
+    camera.add(uiLight);
 
     // Container group for easier management
     const container = new THREE.Group();
@@ -352,9 +357,11 @@ export function showNameEntry3D(
       // Dispose all overlay objects
       disposeOverlayObjects(overlayObjects);
 
-      // Remove container
+      // Remove container + light
       camera.remove(container);
       camera.remove(backdrop);
+      camera.remove(uiLight);
+      uiLight.dispose();
     }
   });
 }
