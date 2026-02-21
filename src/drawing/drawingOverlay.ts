@@ -268,32 +268,26 @@ function drawCategoryButton(
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Background
-  ctx.fillStyle = selected ? '#e8d5a3' : '#f4e4c1';
+  // Background — dark with gold accent when selected
+  ctx.fillStyle = selected ? 'rgba(218, 165, 32, 0.25)' : 'rgba(20, 15, 10, 0.6)';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 8);
   ctx.fill();
 
-  // Border
-  ctx.strokeStyle = selected ? '#2a1a0a' : 'rgba(42, 26, 10, 0.4)';
+  // Border — gold when selected, dim otherwise
+  ctx.strokeStyle = selected ? '#daa520' : 'rgba(218, 165, 32, 0.4)';
   ctx.lineWidth = selected ? 3 : 2;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, selected ? 2 : 1.5);
-
-  // Selected indicator — thicker ink
-  if (selected) {
-    ctx.strokeStyle = 'rgba(42, 26, 10, 0.2)';
-    ctx.lineWidth = 1;
-    drawRoughRect(ctx, 10, 10, w - 20, h - 20, 1);
-  }
 
   // Icon
   ctx.font = '24px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#2a1a0a';
+  ctx.fillStyle = '#f4e4c1';
   ctx.fillText(icon, w / 2, h / 2 - 8);
 
   // Label
   ctx.font = '600 13px "Courier New", monospace';
+  ctx.fillStyle = selected ? '#daa520' : '#c4a46a';
   ctx.fillText(label, w / 2, h / 2 + 16);
 }
 
@@ -309,13 +303,13 @@ function drawWeaponTypeButton(
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Background
-  ctx.fillStyle = selected ? '#e8d5a3' : '#f4e4c1';
+  // Background — dark with gold accent when selected
+  ctx.fillStyle = selected ? 'rgba(218, 165, 32, 0.25)' : 'rgba(20, 15, 10, 0.6)';
   roundedRect(ctx, 2, 2, w - 4, h - 4, 6);
   ctx.fill();
 
   // Border
-  ctx.strokeStyle = selected ? '#2a1a0a' : 'rgba(42, 26, 10, 0.4)';
+  ctx.strokeStyle = selected ? '#daa520' : 'rgba(218, 165, 32, 0.35)';
   ctx.lineWidth = selected ? 2 : 1;
   drawRoughRect(ctx, 3, 3, w - 6, h - 6, selected ? 1.5 : 1);
 
@@ -323,11 +317,12 @@ function drawWeaponTypeButton(
   ctx.font = '16px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#2a1a0a';
+  ctx.fillStyle = '#f4e4c1';
   ctx.fillText(wt.icon, w / 2, h / 2 - 6);
 
   // Label
   ctx.font = '600 9px "Courier New", monospace';
+  ctx.fillStyle = selected ? '#daa520' : '#c4a46a';
   ctx.fillText(wt.label, w / 2, h / 2 + 12);
 }
 
@@ -339,13 +334,13 @@ function drawGenButton(canvas: HTMLCanvasElement, hover: boolean): void {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Orange fill
-  ctx.fillStyle = hover ? '#ff8c33' : '#e87722';
+  // Gold fill
+  ctx.fillStyle = hover ? '#f0b830' : '#daa520';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 10);
   ctx.fill();
 
   // Rough border
-  ctx.strokeStyle = '#8b4513';
+  ctx.strokeStyle = '#8b6914';
   ctx.lineWidth = 3;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, 2);
 
@@ -353,8 +348,8 @@ function drawGenButton(canvas: HTMLCanvasElement, hover: boolean): void {
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  ctx.fillText('GEN', w / 2, h / 2);
+  ctx.fillStyle = '#1a0f05';
+  ctx.fillText('FORGE', w / 2, h / 2);
 }
 
 // --- Clear button rendering ---
@@ -365,18 +360,18 @@ function drawClearButton(canvas: HTMLCanvasElement, hover: boolean): void {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  ctx.fillStyle = hover ? '#ddd0b0' : '#f4e4c1';
+  ctx.fillStyle = hover ? 'rgba(40, 30, 20, 0.8)' : 'rgba(20, 15, 10, 0.6)';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 8);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(42, 26, 10, 0.4)';
+  ctx.strokeStyle = 'rgba(218, 165, 32, 0.4)';
   ctx.lineWidth = 2;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, 1.5);
 
   ctx.font = '600 12px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#2a1a0a';
+  ctx.fillStyle = '#c4a46a';
   ctx.fillText('CLEAR', w / 2, h / 2);
 }
 
@@ -524,7 +519,7 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
-    width: '140px',
+    width: '160px',
     flexShrink: '0',
     paddingLeft: '16px',
     justifyContent: 'center',
@@ -571,12 +566,14 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   // Name input
   const nameLabel = document.createElement('div');
   Object.assign(nameLabel.style, {
-    color: '#2a1a0a',
+    color: '#daa520',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '12px',
-    fontWeight: '600',
+    fontSize: '13px',
+    fontWeight: '700',
+    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+    letterSpacing: '0.5px',
   });
-  nameLabel.textContent = 'Name';
+  nameLabel.textContent = 'NAME';
   sidebar.appendChild(nameLabel);
 
   nameInput = document.createElement('input');
@@ -586,13 +583,13 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   Object.assign(nameInput.style, {
     width: '100%',
     boxSizing: 'border-box',
-    padding: '6px 10px',
-    background: 'rgba(210, 180, 140, 0.3)',
-    border: '2px solid #8b7355',
+    padding: '8px 10px',
+    background: 'rgba(20, 15, 10, 0.7)',
+    border: '2px solid #daa520',
     borderRadius: '6px',
     fontFamily: '"Courier New", Courier, monospace',
     fontSize: '14px',
-    color: '#2a1a0a',
+    color: '#f4e4c1',
     outline: 'none',
   });
   sidebar.appendChild(nameInput);
@@ -600,12 +597,14 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   // Prompt label
   const promptLabel = document.createElement('div');
   Object.assign(promptLabel.style, {
-    color: '#2a1a0a',
+    color: '#daa520',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '12px',
-    fontWeight: '600',
+    fontSize: '13px',
+    fontWeight: '700',
+    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+    letterSpacing: '0.5px',
   });
-  promptLabel.textContent = 'Describe your creation';
+  promptLabel.textContent = 'DESCRIBE';
   sidebar.appendChild(promptLabel);
 
   // Text prompt textarea
@@ -616,12 +615,12 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     width: '100%',
     boxSizing: 'border-box',
     padding: '8px 10px',
-    background: 'rgba(210, 180, 140, 0.3)',
-    border: '2px solid #8b7355',
+    background: 'rgba(20, 15, 10, 0.7)',
+    border: '2px solid #daa520',
     borderRadius: '6px',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '15px',
-    color: '#2a1a0a',
+    fontSize: '14px',
+    color: '#f4e4c1',
     outline: 'none',
     resize: 'vertical',
   });
