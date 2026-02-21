@@ -268,26 +268,32 @@ function drawCategoryButton(
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Background — dark with gold accent when selected
-  ctx.fillStyle = selected ? 'rgba(218, 165, 32, 0.25)' : 'rgba(20, 15, 10, 0.6)';
+  // Background
+  ctx.fillStyle = selected ? '#e8d5a3' : '#f4e4c1';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 8);
   ctx.fill();
 
-  // Border — gold when selected, dim otherwise
-  ctx.strokeStyle = selected ? '#daa520' : 'rgba(218, 165, 32, 0.4)';
+  // Border
+  ctx.strokeStyle = selected ? '#2a1a0a' : 'rgba(42, 26, 10, 0.4)';
   ctx.lineWidth = selected ? 3 : 2;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, selected ? 2 : 1.5);
+
+  // Selected indicator — thicker ink
+  if (selected) {
+    ctx.strokeStyle = 'rgba(42, 26, 10, 0.2)';
+    ctx.lineWidth = 1;
+    drawRoughRect(ctx, 10, 10, w - 20, h - 20, 1);
+  }
 
   // Icon
   ctx.font = '24px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f4e4c1';
+  ctx.fillStyle = '#2a1a0a';
   ctx.fillText(icon, w / 2, h / 2 - 8);
 
   // Label
   ctx.font = '600 13px "Courier New", monospace';
-  ctx.fillStyle = selected ? '#daa520' : '#c4a46a';
   ctx.fillText(label, w / 2, h / 2 + 16);
 }
 
@@ -303,13 +309,13 @@ function drawWeaponTypeButton(
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Background — dark with gold accent when selected
-  ctx.fillStyle = selected ? 'rgba(218, 165, 32, 0.25)' : 'rgba(20, 15, 10, 0.6)';
+  // Background
+  ctx.fillStyle = selected ? '#e8d5a3' : '#f4e4c1';
   roundedRect(ctx, 2, 2, w - 4, h - 4, 6);
   ctx.fill();
 
   // Border
-  ctx.strokeStyle = selected ? '#daa520' : 'rgba(218, 165, 32, 0.35)';
+  ctx.strokeStyle = selected ? '#2a1a0a' : 'rgba(42, 26, 10, 0.4)';
   ctx.lineWidth = selected ? 2 : 1;
   drawRoughRect(ctx, 3, 3, w - 6, h - 6, selected ? 1.5 : 1);
 
@@ -317,12 +323,11 @@ function drawWeaponTypeButton(
   ctx.font = '16px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f4e4c1';
+  ctx.fillStyle = '#2a1a0a';
   ctx.fillText(wt.icon, w / 2, h / 2 - 6);
 
   // Label
   ctx.font = '600 9px "Courier New", monospace';
-  ctx.fillStyle = selected ? '#daa520' : '#c4a46a';
   ctx.fillText(wt.label, w / 2, h / 2 + 12);
 }
 
@@ -334,13 +339,13 @@ function drawGenButton(canvas: HTMLCanvasElement, hover: boolean): void {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // Gold fill
-  ctx.fillStyle = hover ? '#f0b830' : '#daa520';
+  // Orange fill
+  ctx.fillStyle = hover ? '#ff8c33' : '#e87722';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 10);
   ctx.fill();
 
   // Rough border
-  ctx.strokeStyle = '#8b6914';
+  ctx.strokeStyle = '#8b4513';
   ctx.lineWidth = 3;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, 2);
 
@@ -348,7 +353,7 @@ function drawGenButton(canvas: HTMLCanvasElement, hover: boolean): void {
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#1a0f05';
+  ctx.fillStyle = '#fff';
   ctx.fillText('FORGE', w / 2, h / 2);
 }
 
@@ -360,18 +365,18 @@ function drawClearButton(canvas: HTMLCanvasElement, hover: boolean): void {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  ctx.fillStyle = hover ? 'rgba(40, 30, 20, 0.8)' : 'rgba(20, 15, 10, 0.6)';
+  ctx.fillStyle = hover ? '#ddd0b0' : '#f4e4c1';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 8);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(218, 165, 32, 0.4)';
+  ctx.strokeStyle = 'rgba(42, 26, 10, 0.4)';
   ctx.lineWidth = 2;
   drawRoughRect(ctx, 6, 6, w - 12, h - 12, 1.5);
 
   ctx.font = '600 12px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#c4a46a';
+  ctx.fillStyle = '#2a1a0a';
   ctx.fillText('CLEAR', w / 2, h / 2);
 }
 
@@ -392,45 +397,7 @@ function getPromptPlaceholder(categoryId: string): string {
 
 // --- Weapon type grid ---
 
-function buildWeaponTypeGrid(sidebar: HTMLDivElement): HTMLDivElement {
-  const container = document.createElement('div');
-  Object.assign(container.style, {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '4px',
-  });
-
-  weaponTypeButtons = [];
-
-  for (const wt of WEAPON_TYPES) {
-    const btn = document.createElement('button');
-    Object.assign(btn.style, {
-      background: 'none',
-      border: 'none',
-      padding: '0',
-      cursor: 'pointer',
-      display: 'block',
-    });
-    const btnCanvas = document.createElement('canvas');
-    btnCanvas.width = 65;
-    btnCanvas.height = 44;
-    Object.assign(btnCanvas.style, { width: '100%', height: 'auto' });
-    btn.appendChild(btnCanvas);
-    drawWeaponTypeButton(btnCanvas, wt, wt.id === selectedWeaponType);
-
-    btn.addEventListener('click', () => {
-      selectedWeaponType = wt.id;
-      updateWeaponTypeButtons();
-      updateProjectilePadVisibility();
-    });
-
-    weaponTypeButtons.push(btn);
-    container.appendChild(btn);
-  }
-
-  sidebar.appendChild(container);
-  return container;
-}
+// buildWeaponTypeGrid is now inline in buildOverlay (horizontal bar above parchment)
 
 function updateWeaponTypeButtons(): void {
   for (let i = 0; i < WEAPON_TYPES.length; i++) {
@@ -476,13 +443,64 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     display: 'flex',
     gap: '0',
     maxWidth: '900px',
-    maxHeight: '640px',
+    maxHeight: '700px',
     width: '90vw',
-    height: '80vh',
+    height: '85vh',
     position: 'relative',
   });
 
-  // --- Left: parchment + canvas ---
+  // --- Left column: weapon types (horizontal) + parchment ---
+  const leftColumn = document.createElement('div');
+  Object.assign(leftColumn.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: '1',
+    minWidth: '0',
+    gap: '0',
+  });
+
+  // Weapon type bar (horizontal, above parchment — hidden by default)
+  weaponTypeContainer = document.createElement('div');
+  Object.assign(weaponTypeContainer.style, {
+    display: 'none',
+    flexDirection: 'row',
+    gap: '4px',
+    padding: '6px 8px',
+    flexShrink: '0',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  });
+
+  weaponTypeButtons = [];
+  for (const wt of WEAPON_TYPES) {
+    const btn = document.createElement('button');
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      padding: '0',
+      cursor: 'pointer',
+      display: 'block',
+    });
+    const btnCanvas = document.createElement('canvas');
+    btnCanvas.width = 80;
+    btnCanvas.height = 44;
+    Object.assign(btnCanvas.style, { width: '80px', height: 'auto' });
+    btn.appendChild(btnCanvas);
+    drawWeaponTypeButton(btnCanvas, wt, wt.id === selectedWeaponType);
+
+    btn.addEventListener('click', () => {
+      selectedWeaponType = wt.id;
+      updateWeaponTypeButtons();
+      updateProjectilePadVisibility();
+    });
+
+    weaponTypeButtons.push(btn);
+    weaponTypeContainer.appendChild(btn);
+  }
+  leftColumn.appendChild(weaponTypeContainer);
+  updateWeaponTypeVisibility();
+
+  // --- Parchment + canvas ---
   const parchmentWrap = document.createElement('div');
   Object.assign(parchmentWrap.style, {
     position: 'relative',
@@ -559,21 +577,15 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     sidebar.appendChild(btn);
   }
 
-  // Weapon type grid (shown only for 'weapon' category)
-  weaponTypeContainer = buildWeaponTypeGrid(sidebar);
-  updateWeaponTypeVisibility();
-
   // Name input
   const nameLabel = document.createElement('div');
   Object.assign(nameLabel.style, {
-    color: '#daa520',
+    color: '#2a1a0a',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '13px',
-    fontWeight: '700',
-    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-    letterSpacing: '0.5px',
+    fontSize: '12px',
+    fontWeight: '600',
   });
-  nameLabel.textContent = 'NAME';
+  nameLabel.textContent = 'Name';
   sidebar.appendChild(nameLabel);
 
   nameInput = document.createElement('input');
@@ -583,13 +595,13 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   Object.assign(nameInput.style, {
     width: '100%',
     boxSizing: 'border-box',
-    padding: '8px 10px',
-    background: 'rgba(20, 15, 10, 0.7)',
-    border: '2px solid #daa520',
+    padding: '6px 10px',
+    background: 'rgba(210, 180, 140, 0.3)',
+    border: '2px solid #8b7355',
     borderRadius: '6px',
     fontFamily: '"Courier New", Courier, monospace',
     fontSize: '14px',
-    color: '#f4e4c1',
+    color: '#2a1a0a',
     outline: 'none',
   });
   sidebar.appendChild(nameInput);
@@ -597,14 +609,12 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   // Prompt label
   const promptLabel = document.createElement('div');
   Object.assign(promptLabel.style, {
-    color: '#daa520',
+    color: '#2a1a0a',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '13px',
-    fontWeight: '700',
-    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-    letterSpacing: '0.5px',
+    fontSize: '12px',
+    fontWeight: '600',
   });
-  promptLabel.textContent = 'DESCRIBE';
+  promptLabel.textContent = 'Describe your creation';
   sidebar.appendChild(promptLabel);
 
   // Text prompt textarea
@@ -615,12 +625,12 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
     width: '100%',
     boxSizing: 'border-box',
     padding: '8px 10px',
-    background: 'rgba(20, 15, 10, 0.7)',
-    border: '2px solid #daa520',
+    background: 'rgba(210, 180, 140, 0.3)',
+    border: '2px solid #8b7355',
     borderRadius: '6px',
     fontFamily: '"Courier New", Courier, monospace',
-    fontSize: '14px',
-    color: '#f4e4c1',
+    fontSize: '15px',
+    color: '#2a1a0a',
     outline: 'none',
     resize: 'vertical',
   });
@@ -697,7 +707,8 @@ function buildOverlay(categories: DrawingCategory[], defaultCategory?: string): 
   closeBtn.addEventListener('click', hideDrawingOverlay);
   panel.appendChild(closeBtn);
 
-  panel.appendChild(parchmentWrap);
+  leftColumn.appendChild(parchmentWrap);
+  panel.appendChild(leftColumn);
   panel.appendChild(sidebar);
   root.appendChild(panel);
 
@@ -732,7 +743,7 @@ function updateCategoryButtons(categories: DrawingCategory[]): void {
 
 function updateWeaponTypeVisibility(): void {
   if (!weaponTypeContainer) return;
-  weaponTypeContainer.style.display = selectedCategoryId === 'weapon' ? 'grid' : 'none';
+  weaponTypeContainer.style.display = selectedCategoryId === 'weapon' ? 'flex' : 'none';
 }
 
 function updatePromptPlaceholder(): void {
