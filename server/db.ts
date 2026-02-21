@@ -47,6 +47,13 @@ export async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
+
+  // Add sprite_png column to existing tables (safe if column already exists)
+  await pool.query(`
+    ALTER TABLE enemies ADD COLUMN IF NOT EXISTS sprite_png BYTEA;
+    ALTER TABLE decorations ADD COLUMN IF NOT EXISTS sprite_png BYTEA;
+  `);
+
   console.log('Database tables initialized');
 }
 

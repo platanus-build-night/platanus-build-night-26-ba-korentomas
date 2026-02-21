@@ -14,6 +14,9 @@ import { type MusicPlayer, type SfxPlayer, AudioEvent } from '../audio';
 import { createDungeonLights, updateDungeonLights, disposeDungeonLights, type DungeonLight } from '../dungeon/dungeonLights';
 import { spawnDecorations, disposeDecorations } from '../decorations/decorationPlacer';
 import { disposeDecorationShared } from '../decorations/decorationModels';
+import { spawnPaintings, disposePaintings, type PlacedPainting } from '../decorations/paintingPlacer';
+import { disposePaintingShared } from '../decorations/paintingModel';
+import { createCustomEnemyType } from '../enemies/customEnemyModel';
 import { spawnItems, spawnBlueprintAtPosition } from '../items/itemPlacer';
 import { ItemPickupSystem } from '../items/itemPickup';
 import { ItemType, disposeItemShared } from '../items/itemTypes';
@@ -23,7 +26,7 @@ import { ProjectileManager } from '../projectiles/projectileManager';
 import { PROJECTILE_TYPES } from '../projectiles/projectileTypes';
 import { disposeProjectileShared } from '../projectiles/projectileModels';
 import { showDrawingOverlay, hideDrawingOverlay, showForgeProgress, hideForgeProgress } from '../drawing/drawingOverlay';
-import { forgeCreation, type ForgedItem } from '../forge/forgeCreation';
+import { forgeCreation, arrayBufferToDataUrl } from '../forge/forgeCreation';
 import { communityCache } from '../community/communityCache';
 import { setOnCloseCallback, isConsoleOpen } from '../cheats/cheatConsole';
 import { registerGameCheats } from '../cheats/gameCheats';
@@ -56,6 +59,7 @@ export async function createGameLoop(
   let transitioning = false;
   let damageFlash = 0;
   let decorations: THREE.Group[] = [];
+  let paintings: PlacedPainting[] = [];
   let dungeonLights: DungeonLight[] = [];
   const itemPickup = new ItemPickupSystem();
 
@@ -65,8 +69,9 @@ export async function createGameLoop(
   let equippedWeapon: 'melee' | 'ranged' = 'melee';
   let roomTracker: RoomTracker | null = null;
   let projectileManager: ProjectileManager | null = null;
-  const customEnemyQueue: ForgedItem[] = [];
-  const customDecorationQueue: ForgedItem[] = [];
+  interface QueuedSprite { dataUrl: string; name: string; id: number; }
+  const customEnemyQueue: QueuedSprite[] = [];
+  const customPaintingQueue: QueuedSprite[] = [];
   let bossEnemy: { id: number; health: number; maxHealth: number; name: string } | null = null;
 
   // Footstep tracking
@@ -178,6 +183,7 @@ export async function createGameLoop(
       disposeFloorMesh(floorResult);
     }
     disposeDecorations(decorations);
+    disposePaintings(paintings);
     disposeDungeonLights(dungeonLights);
     itemPickup.dispose();
     enemies.dispose();
@@ -196,6 +202,28 @@ export async function createGameLoop(
 
     // Spawn decorations
     decorations = spawnDecorations(dungeonFloor, floorResult.group);
+
+    // Spawn wall paintings from queued custom paintings + community sprites
+    const paintingUrls: string[] = [];
+    while (customPaintingQueue.length > 0) {
+      const queued = customPaintingQueue.shift()!;
+      paintingUrls.push(queued.dataUrl);
+    }
+    // Community decoration sprites on floors 4+
+    if (floorNum >= 4) {
+      communityCache.getRandomDecorationSprite().then(sprite => {
+        if (sprite) {
+          spawnPaintings(dungeonFloor, [sprite.dataUrl], floorResult!.group).then(placed => {
+            paintings.push(...placed);
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+    if (paintingUrls.length > 0) {
+      spawnPaintings(dungeonFloor, paintingUrls, floorResult.group).then(placed => {
+        paintings.push(...placed);
+      }).catch(() => {});
+    }
 
     // Spawn items (blueprints now only from room clearing)
     const items = spawnItems(dungeonFloor, floorResult.group);
@@ -265,6 +293,49 @@ export async function createGameLoop(
       }
       // SPAWN rooms get no enemies
     }
+
+    // Spawn custom sprite enemies from queue
+    const spriteEnemyPromises: Promise<void>[] = [];
+    while (customEnemyQueue.length > 0) {
+      const queued = customEnemyQueue.shift()!;
+      const normalRooms = dungeonFloor.rooms.filter(r => r.type === RoomType.NORMAL);
+      if (normalRooms.length > 0) {
+        const room = normalRooms[Math.floor(Math.random() * normalRooms.length)];
+        const cx = room.x + room.width / 2;
+        const cz = room.y + room.height / 2;
+        const stats = { health: 30, speed: 2, damage: 10, points: 100 };
+        spriteEnemyPromises.push(
+          createCustomEnemyType(queued.dataUrl, stats, queued.name).then(customType => {
+            enemies.spawnEnemiesInRoom({ x: cx, z: cz }, 1, customType, room.index);
+          }).catch(() => {})
+        );
+      }
+    }
+
+    // Community sprite enemies on floors 4+
+    if (floorNum >= 4) {
+      spriteEnemyPromises.push(
+        communityCache.getRandomEnemySprite().then(async sprite => {
+          if (!sprite) return;
+          const normalRooms = dungeonFloor.rooms.filter(r => r.type === RoomType.NORMAL);
+          if (normalRooms.length === 0) return;
+          const room = normalRooms[Math.floor(Math.random() * normalRooms.length)];
+          const cx = room.x + room.width / 2;
+          const cz = room.y + room.height / 2;
+          const stats = {
+            health: sprite.stats.health,
+            speed: sprite.stats.speed,
+            damage: sprite.stats.damage,
+            points: sprite.stats.points,
+          };
+          const customType = await createCustomEnemyType(sprite.dataUrl, stats, sprite.name);
+          enemies.spawnEnemiesInRoom({ x: cx, z: cz }, 1, customType, room.index);
+        }).catch(() => {})
+      );
+    }
+
+    // Fire and forget — sprite enemies load async
+    Promise.all(spriteEnemyPromises).catch(() => {});
 
     // Room entered callback
     roomTracker.setOnRoomEntered((roomIndex) => {
@@ -380,15 +451,17 @@ export async function createGameLoop(
       hideDrawingOverlay();
 
       if (forgedItem.category === 'weapon') {
-        await swordModel.loadGLB(forgedItem.glb);
+        await swordModel.loadGLB(forgedItem.data);
         swordModel.currentWeaponName = forgedItem.name;
         swordModel.currentWeaponId = forgedItem.id;
         sfxPlayer?.play(AudioEvent.ITEM_PICKUP);
       } else if (forgedItem.category === 'enemy') {
-        customEnemyQueue.push(forgedItem);
+        const dataUrl = arrayBufferToDataUrl(forgedItem.data, 'image/png');
+        customEnemyQueue.push({ dataUrl, name: forgedItem.name, id: forgedItem.id });
         sfxPlayer?.play(AudioEvent.ITEM_PICKUP);
       } else if (forgedItem.category === 'decoration') {
-        customDecorationQueue.push(forgedItem);
+        const dataUrl = arrayBufferToDataUrl(forgedItem.data, 'image/png');
+        customPaintingQueue.push({ dataUrl, name: forgedItem.name, id: forgedItem.id });
         sfxPlayer?.play(AudioEvent.ITEM_PICKUP);
       }
     } catch (err) {
@@ -566,9 +639,11 @@ export async function createGameLoop(
     camera.remove(playerTorch);
     playerTorch.dispose();
     disposeDecorations(decorations);
+    disposePaintings(paintings);
     disposeDungeonLights(dungeonLights);
     itemPickup.dispose();
     disposeDecorationShared();
+    disposePaintingShared();
     disposeItemShared();
     projectileManager?.dispose();
     disposeProjectileShared();

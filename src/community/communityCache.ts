@@ -9,6 +9,7 @@ import {
   type EnemyCreation,
   type DecorationCreation,
 } from '../forge/api';
+import { arrayBufferToDataUrl } from '../forge/forgeCreation';
 
 export interface CachedModel {
   id: number;
@@ -19,7 +20,7 @@ export class CommunityCache {
   private weapons: Weapon[] = [];
   private enemies: EnemyCreation[] = [];
   private decorations: DecorationCreation[] = [];
-  private glbCache = new Map<string, ArrayBuffer>();
+  private dataCache = new Map<string, ArrayBuffer>();
   private loaded = false;
 
   async preload(): Promise<void> {
@@ -43,11 +44,11 @@ export class CommunityCache {
     if (this.weapons.length === 0) return null;
     const weapon = this.weapons[Math.floor(Math.random() * this.weapons.length)];
     const key = `weapon-${weapon.id}`;
-    let glb = this.glbCache.get(key);
+    let glb = this.dataCache.get(key);
     if (!glb) {
       try {
         glb = await getWeaponModel(weapon.id);
-        this.glbCache.set(key, glb);
+        this.dataCache.set(key, glb);
       } catch {
         return null;
       }
@@ -55,36 +56,38 @@ export class CommunityCache {
     return { glb, name: weapon.name };
   }
 
-  async getRandomEnemyModel(): Promise<{ glb: ArrayBuffer; stats: EnemyCreation; name: string } | null> {
+  async getRandomEnemySprite(): Promise<{ dataUrl: string; stats: EnemyCreation; name: string } | null> {
     if (this.enemies.length === 0) return null;
     const enemy = this.enemies[Math.floor(Math.random() * this.enemies.length)];
     const key = `enemy-${enemy.id}`;
-    let glb = this.glbCache.get(key);
-    if (!glb) {
+    let data = this.dataCache.get(key);
+    if (!data) {
       try {
-        glb = await getEnemyModel(enemy.id);
-        this.glbCache.set(key, glb);
+        data = await getEnemyModel(enemy.id);
+        this.dataCache.set(key, data);
       } catch {
         return null;
       }
     }
-    return { glb, stats: enemy, name: enemy.name };
+    const dataUrl = arrayBufferToDataUrl(data, 'image/png');
+    return { dataUrl, stats: enemy, name: enemy.name };
   }
 
-  async getRandomDecorationGLB(): Promise<{ glb: ArrayBuffer; name: string } | null> {
+  async getRandomDecorationSprite(): Promise<{ dataUrl: string; name: string } | null> {
     if (this.decorations.length === 0) return null;
     const deco = this.decorations[Math.floor(Math.random() * this.decorations.length)];
     const key = `deco-${deco.id}`;
-    let glb = this.glbCache.get(key);
-    if (!glb) {
+    let data = this.dataCache.get(key);
+    if (!data) {
       try {
-        glb = await getDecorationModel(deco.id);
-        this.glbCache.set(key, glb);
+        data = await getDecorationModel(deco.id);
+        this.dataCache.set(key, data);
       } catch {
         return null;
       }
     }
-    return { glb, name: deco.name };
+    const dataUrl = arrayBufferToDataUrl(data, 'image/png');
+    return { dataUrl, name: deco.name };
   }
 
   get hasContent(): boolean {

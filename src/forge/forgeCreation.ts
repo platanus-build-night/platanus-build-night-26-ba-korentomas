@@ -1,10 +1,19 @@
 import type { DrawingResult } from '../drawing/drawingTypes';
 
 export interface ForgedItem {
-  glb: ArrayBuffer;
+  data: ArrayBuffer;
   id: number;
   name: string;
   category: 'weapon' | 'enemy' | 'decoration';
+}
+
+export function arrayBufferToDataUrl(buffer: ArrayBuffer, mimeType: string): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
 }
 
 export async function forgeCreation(drawingResult: DrawingResult): Promise<ForgedItem> {
@@ -24,9 +33,9 @@ export async function forgeCreation(drawingResult: DrawingResult): Promise<Forge
     throw new Error(`Forge failed (${res.status})`);
   }
 
-  const glb = await res.arrayBuffer();
+  const data = await res.arrayBuffer();
   return {
-    glb,
+    data,
     id: Number(res.headers.get('X-Weapon-Id') || res.headers.get('X-Item-Id') || '0'),
     name: res.headers.get('X-Weapon-Name') || res.headers.get('X-Item-Name') || 'Custom Creation',
     category: (res.headers.get('X-Item-Category') || drawingResult.categoryId || 'weapon') as ForgedItem['category'],

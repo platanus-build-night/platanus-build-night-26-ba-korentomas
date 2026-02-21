@@ -17,21 +17,44 @@ const WEAPON_LABELS: Record<string, string> = {
 
 type ForgeCategory = 'weapon' | 'enemy' | 'decoration';
 
-function buildPrompt(category: ForgeCategory, description?: string, weaponType?: string): string {
+interface PromptConfig {
+  prompt: string;
+  negative_prompt: string;
+  style_preset: string;
+  control_strength: string;
+}
+
+function buildPromptConfig(category: ForgeCategory, description?: string, weaponType?: string): PromptConfig {
   if (category === 'enemy') {
     const desc = description || 'a fearsome dungeon creature';
-    return `A 3D rendered fantasy monster creature, ${desc}, on a plain white background, centered, single object, high detail, game asset, no text`;
+    return {
+      prompt: `A 2D fantasy creature sprite, front-facing, full body, pixel art style, dark dungeon aesthetic, transparent background, single character, game enemy sprite, ${desc}, no text`,
+      negative_prompt: 'blurry, low quality, multiple characters, text, watermark, background scene, 3D render, realistic photo',
+      style_preset: 'pixel-art',
+      control_strength: '0.7',
+    };
   }
   if (category === 'decoration') {
     const desc = description || 'a stone dungeon decoration';
-    return `A 3D rendered fantasy dungeon decoration, ${desc}, on a plain white background, centered, single object, high detail, game asset, no text`;
+    return {
+      prompt: `A 2D painting for a fantasy dungeon wall, ${desc}, painterly style, framed artwork aesthetic, no text, no border`,
+      negative_prompt: 'blurry, low quality, multiple characters, text, watermark, background scene, 3D render, realistic photo',
+      style_preset: 'fantasy-art',
+      control_strength: '0.7',
+    };
   }
   // weapon (default)
   const resolvedType = weaponType || 'sword';
   const weaponLabel = WEAPON_LABELS[resolvedType] || WEAPON_LABELS['sword'];
-  return description
+  const prompt = description
     ? `A 3D rendered fantasy ${weaponLabel}, ${description}, on a plain white background, centered, single object, high detail, game asset, no text`
     : `A 3D rendered fantasy ${weaponLabel} on a plain white background, centered, single object, high detail, game asset, no text`;
+  return {
+    prompt,
+    negative_prompt: 'blurry, low quality, multiple objects, text, watermark, background scene, glowing effects, particle effects, aura, magic effects',
+    style_preset: '3d-model',
+    control_strength: '0.7',
+  };
 }
 
 forgeRouter.post('/forge', async (req: Request, res: Response) => {
@@ -55,17 +78,17 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
     const imageBuffer = Buffer.from(base64Data, 'base64');
     const apiKey = process.env.STABILITY_API_KEY;
 
-    const prompt = buildPrompt(category, description, weaponType);
+    const promptConfig = buildPromptConfig(category, description, weaponType);
 
-    // Step 1: Sketch → Realistic weapon image via Stability Sketch Control
-    console.log('Step 1: Converting sketch to realistic image...');
+    // Step 1: Sketch → image via Stability Sketch Control
+    console.log('Step 1: Converting sketch to image...');
     const sketchForm = new FormData();
     sketchForm.append('image', new Blob([imageBuffer], { type: 'image/png' }), 'sketch.png');
-    sketchForm.append('prompt', prompt);
-    sketchForm.append('negative_prompt', 'blurry, low quality, multiple objects, text, watermark, background scene, glowing effects, particle effects, aura, magic effects');
-    sketchForm.append('control_strength', '0.7');
+    sketchForm.append('prompt', promptConfig.prompt);
+    sketchForm.append('negative_prompt', promptConfig.negative_prompt);
+    sketchForm.append('control_strength', promptConfig.control_strength);
     sketchForm.append('output_format', 'png');
-    sketchForm.append('style_preset', '3d-model');
+    sketchForm.append('style_preset', promptConfig.style_preset);
 
     const sketchResponse = await fetch(
       'https://api.stability.ai/v2beta/stable-image/control/sketch',
@@ -88,6 +111,27 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
 
     const renderedImage = Buffer.from(await sketchResponse.arrayBuffer());
     console.log('Step 1 done. Rendered image size:', renderedImage.length);
+
+    // For enemies and decorations, return the PNG sprite directly (skip SF3D + optimize)
+    if (category === 'enemy' || category === 'decoration') {
+      const table = category === 'enemy' ? 'enemies' : 'decorations';
+      const defaultName = category === 'enemy' ? 'Unnamed Enemy' : 'Unnamed Decoration';
+      const result = await pool.query(
+        `INSERT INTO ${table} (name, sketch_png, sprite_png) VALUES ($1, $2, $3) RETURNING id, name`,
+        [name || defaultName, base64Data, renderedImage]
+      );
+      const itemId = result.rows[0].id;
+      const itemName = result.rows[0].name;
+
+      res.set({
+        'Content-Type': 'image/png',
+        'X-Item-Id': String(itemId),
+        'X-Item-Name': itemName,
+        'X-Item-Category': category,
+      });
+      res.send(renderedImage);
+      return;
+    }
 
     // Step 2: Realistic image → 3D model via SF3D (use 512 textures for smaller output)
     console.log('Step 2: Converting image to 3D model...');
@@ -122,46 +166,22 @@ forgeRouter.post('/forge', async (req: Request, res: Response) => {
     console.log('Step 3 done. Optimized GLB size:', glbBuffer.length,
       `(${Math.round((1 - glbBuffer.length / rawGlb.length) * 100)}% reduction)`);
 
-    // Store in DB based on category
-    let itemId: number;
-    let itemName: string;
+    // Store weapon in DB (enemies/decorations already handled above)
+    const result = await pool.query(
+      'INSERT INTO weapons (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
+      [name || 'Unnamed Weapon', base64Data, glbBuffer]
+    );
+    const itemId = result.rows[0].id;
+    const itemName = result.rows[0].name;
 
-    if (category === 'enemy') {
-      const result = await pool.query(
-        'INSERT INTO enemies (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
-        [name || 'Unnamed Enemy', base64Data, glbBuffer]
-      );
-      itemId = result.rows[0].id;
-      itemName = result.rows[0].name;
-    } else if (category === 'decoration') {
-      const result = await pool.query(
-        'INSERT INTO decorations (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
-        [name || 'Unnamed Decoration', base64Data, glbBuffer]
-      );
-      itemId = result.rows[0].id;
-      itemName = result.rows[0].name;
-    } else {
-      const result = await pool.query(
-        'INSERT INTO weapons (name, sketch_png, model_glb) VALUES ($1, $2, $3) RETURNING id, name',
-        [name || 'Unnamed Weapon', base64Data, glbBuffer]
-      );
-      itemId = result.rows[0].id;
-      itemName = result.rows[0].name;
-    }
-
-    const headers: Record<string, string> = {
+    res.set({
       'Content-Type': 'model/gltf-binary',
       'X-Item-Id': String(itemId),
       'X-Item-Name': itemName,
       'X-Item-Category': category,
-    };
-    // Backward compat for weapon clients
-    if (category === 'weapon') {
-      headers['X-Weapon-Id'] = String(itemId);
-      headers['X-Weapon-Name'] = itemName;
-    }
-
-    res.set(headers);
+      'X-Weapon-Id': String(itemId),
+      'X-Weapon-Name': itemName,
+    });
     res.send(glbBuffer);
   } catch (err) {
     console.error('Forge error:', err);

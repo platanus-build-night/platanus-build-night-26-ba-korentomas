@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { normalizeModel } from '../utils/modelNormalizer';
+import { createSpriteEnemyModel } from './spriteEnemy';
 
 interface EnemyStats {
   health: number;
@@ -20,27 +19,12 @@ interface CustomEnemyType {
   modelGenerator: () => THREE.Group;
 }
 
-const loader = new GLTFLoader();
-
 export async function createCustomEnemyType(
-  glb: ArrayBuffer,
+  spriteDataUrl: string,
   stats: EnemyStats,
   name: string,
 ): Promise<CustomEnemyType> {
-  const result = await loader.parseAsync(glb.slice(0), '');
-  const scene = result.scene;
-  normalizeModel(scene, 1.5); // enemy height
-
-  // Ensure all materials are MeshStandardMaterial for lighting
-  scene.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      if (!(child.material instanceof THREE.MeshStandardMaterial)) {
-        const oldMat = child.material as THREE.Material;
-        child.material = new THREE.MeshStandardMaterial({ roughness: 0.8 });
-        oldMat.dispose();
-      }
-    }
-  });
+  const factory = await createSpriteEnemyModel(spriteDataUrl);
 
   return {
     name,
@@ -50,15 +34,6 @@ export async function createCustomEnemyType(
     attackRange: 1.5,
     attackCooldown: 1.0,
     points: stats.points,
-    modelGenerator: () => {
-      const clone = scene.clone(true);
-      // Clone materials for independent tinting
-      clone.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-          child.material = child.material.clone();
-        }
-      });
-      return clone;
-    },
+    modelGenerator: factory,
   };
 }
