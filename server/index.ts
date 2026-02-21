@@ -8,6 +8,7 @@ import { enemiesRouter } from './routes/enemies.js';
 import { decorationsRouter } from './routes/decorations.js';
 import { faviconRouter } from './routes/favicon.js';
 import { galleryRouter } from './routes/gallery.js';
+import { adminRouter } from './routes/admin.js';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use('/api', enemiesRouter);
 app.use('/api', decorationsRouter);
 app.use('/api', faviconRouter);
 app.use('/api', galleryRouter);
+app.use('/api', adminRouter);
 
 initDb()
   .then(() => {

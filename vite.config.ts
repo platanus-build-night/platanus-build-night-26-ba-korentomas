@@ -10,6 +10,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         forge: resolve(__dirname, 'forge.html'),
         favicon: resolve(__dirname, 'favicon.html'),
+        admin: resolve(__dirname, 'admin.html'),
       },
     },
   },
