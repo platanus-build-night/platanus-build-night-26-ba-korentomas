@@ -32,6 +32,10 @@ export class PlayerController {
   private readonly onKeyDown: (e: KeyboardEvent) => void;
   private readonly onKeyUp: (e: KeyboardEvent) => void;
   private readonly onMouseMove: (e: MouseEvent) => void;
+  private readonly onPointerLockChange: () => void;
+
+  /** Skip N mousemove events after pointer lock acquisition to avoid spike */
+  private skipMoveFrames = 0;
 
   constructor(camera: PerspectiveCamera, grid: CellType[][]) {
     this.camera = camera;
@@ -49,9 +53,22 @@ export class PlayerController {
       this.keys[e.code] = false;
     };
 
+    // When pointer lock is acquired, skip the first 2 mousemove events
+    // to avoid the movement spike browsers produce on lock acquisition
+    this.onPointerLockChange = () => {
+      if (document.pointerLockElement) {
+        this.skipMoveFrames = 2;
+      }
+    };
+
     // Direct mouse application — no smoothing, like Three.js PointerLockControls
     this.onMouseMove = (e: MouseEvent) => {
       if (!document.pointerLockElement) return;
+      // Skip initial events after pointer lock to avoid movement spike
+      if (this.skipMoveFrames > 0) {
+        this.skipMoveFrames--;
+        return;
+      }
       this.yaw -= e.movementX * MOUSE_SENSITIVITY;
       this.pitch -= e.movementY * MOUSE_SENSITIVITY;
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
@@ -60,6 +77,7 @@ export class PlayerController {
     document.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('keyup', this.onKeyUp);
     document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('pointerlockchange', this.onPointerLockChange);
   }
 
   get isDead(): boolean {
@@ -201,5 +219,6 @@ export class PlayerController {
     document.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
   }
 }

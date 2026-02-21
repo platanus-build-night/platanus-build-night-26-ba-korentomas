@@ -1116,12 +1116,16 @@ export async function createGameLoop(
       damageFlash = Math.max(0, damageFlash - delta * 2);
     }
 
-    // Camera shake on damage — apply small random rotation offsets
+    // Camera shake on damage — temporary offset, non-accumulating
     if (cameraShake > 0) {
       const shakeIntensity = cameraShake * 0.02;
-      camera.rotation.x += (Math.random() - 0.5) * 2 * shakeIntensity;
-      camera.rotation.y += (Math.random() - 0.5) * 2 * shakeIntensity;
+      const shakeX = (Math.random() - 0.5) * 2 * shakeIntensity;
+      const shakeY = (Math.random() - 0.5) * 2 * shakeIntensity;
+      camera.rotation.x += shakeX;
+      camera.rotation.y += shakeY;
       cameraShake = Math.max(0, cameraShake - delta * 3);
+      // Note: PlayerController.update() overwrites rotation next frame,
+      // so these offsets are naturally non-accumulating.
     }
 
     // Low health warning — persistent red vignette + heartbeat SFX
